@@ -3,7 +3,10 @@ package org.example;
 import blind75.*;
 import corejava.ThreadCommViaWaitNotify;
 import corejava.ThreadCommunicationViaQueue;
+import interviews.CheapestFlightWithInKStops;
 import interviews.MaxPossibleScore;
+import interviews.MostBookedRoom;
+import interviews.ShoppingWillingWaitTime;
 import liked100.*;
 import live.MinimumMeetingRoom;
 import live.RemoveDuplicateFromString;
@@ -171,7 +174,22 @@ public class Main {
         //System.out.println(new FirstOccuranceStringIndex().strStr("leetcode", "leet0"));
 
         //System.out.println(new MaxPossibleScore().maxScore(new int[]{3,12,9,10}));
-        System.out.println(new SumArrayByRecursion().sum());
+        //System.out.println(new SumArrayByRecursion().sum());
+        //System.out.println(new ShoppingWillingWaitTime().waitTime(4, 4, new int[]{0, 0, 0, 0}));
+//        System.out.println(new CheapestFlightWithInKStops().findCheapestPrice(4, new int[][]{
+//                {0,1,1},
+//                {0,2,5},
+//                {1,2,1},
+//                {2,3,1}
+//        }, 0, 3, 1));
+
+        System.out.println(new MostBookedRoom().mostBooked(3, new int[][] {
+                {1,20},
+                {2,10},
+                {3,5},
+                {4,9},
+                {6,8}
+        }));
     }
 }
 

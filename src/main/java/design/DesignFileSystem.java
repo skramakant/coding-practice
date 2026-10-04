@@ -54,6 +54,11 @@ class Tri {
     boolean isFile; // file or directory
     HashMap<String, Tri> children; // it will have children if it is a directory
 
+
+    public Tri() {
+        name = "/";
+    }
+
     public Tri insert(String path, boolean isFile) {
         Tri node = this;
 
@@ -74,6 +79,8 @@ class Tri {
 
         if(isFile) {
             node.name = paths[paths.length -1];
+        } else {
+            node.name = "/" + paths[paths.length -1];
         }
 
         return node;

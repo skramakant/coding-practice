@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scaling & Architecture Series — 25-Day Learning Path</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+    --purple: #a855f7; --purple-bg: rgba(168,85,247,0.12);
+    --card-hover-shadow: 0 8px 40px rgba(99,102,241,0.25);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #1e293b; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(248,250,252,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+    --purple: #9333ea; --purple-bg: rgba(147,51,234,0.08);
+    --card-hover-shadow: 0 8px 40px rgba(79,70,229,0.15);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+
+  /* Nav */
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+  .nav-brand { font-weight: 800; font-size: 1rem; color: var(--accent); }
+  .nav-right { display: flex; align-items: center; gap: 1rem; }
+  .nav-stat { font-size: 0.8rem; color: var(--text2); }
+  .nav-stat span { color: var(--accent2); font-weight: 700; }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .page { max-width: 1200px; margin: 0 auto; padding: 80px 2rem 5rem; }
+
+  /* Hero */
+  .hero { padding: 4rem 0 3rem; text-align: center; border-bottom: 1px solid var(--border); margin-bottom: 4rem; position: relative; overflow: hidden; }
+  .hero::before { content: ''; position: absolute; top: -60%; left: 50%; transform: translateX(-50%); width: 800px; height: 800px; background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%); pointer-events: none; }
+  .hero-eyebrow { display: inline-flex; align-items: center; gap: 0.5rem; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.4rem 1rem; border-radius: 100px; margin-bottom: 1.5rem; border: 1px solid rgba(99,102,241,0.25); }
+  .hero h1 { font-size: clamp(2.2rem, 5vw, 3.5rem); font-weight: 900; line-height: 1.1; margin-bottom: 1rem; letter-spacing: -0.02em; }
+  .hero h1 .accent { color: var(--accent); }
+  .hero-sub { font-size: 1.1rem; color: var(--text2); max-width: 600px; margin: 0 auto 2rem; }
+  .hero-stats { display: flex; justify-content: center; gap: 3rem; }
+  .stat { text-align: center; }
+  .stat-num { font-size: 2rem; font-weight: 800; color: var(--accent); line-height: 1; }
+  .stat-label { font-size: 0.8rem; color: var(--text2); margin-top: 0.25rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* Category filter pills */
+  .filters { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 2rem; }
+  .filter-pill { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 0.35rem 0.85rem; border-radius: 100px; font-size: 0.8rem; cursor: pointer; transition: all 0.2s; }
+  .filter-pill:hover, .filter-pill.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+
+  /* Grid */
+  .days-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
+
+  /* Day cards */
+  .day-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 0.75rem; transition: all 0.2s; position: relative; overflow: hidden; }
+  .day-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--card-accent, var(--accent)); opacity: 0.6; transition: opacity 0.2s; }
+  .day-card:hover { border-color: var(--card-accent, var(--accent)); box-shadow: var(--card-hover-shadow); transform: translateY(-2px); }
+  .day-card:hover::before { opacity: 1; }
+  .day-card-top { display: flex; align-items: flex-start; justify-content: space-between; }
+  .day-num { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text2); background: var(--bg3); padding: 0.2rem 0.6rem; border-radius: 100px; }
+  .day-badge { font-size: 0.68rem; font-weight: 600; padding: 0.2rem 0.55rem; border-radius: 100px; }
+  .day-title { font-size: 1.05rem; font-weight: 700; line-height: 1.25; }
+  .day-desc { font-size: 0.85rem; color: var(--text2); line-height: 1.55; flex: 1; }
+  .day-arrow { display: flex; align-items: center; justify-content: space-between; margin-top: 0.25rem; }
+  .day-arrow-icon { width: 28px; height: 28px; border-radius: 50%; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 0.85rem; transition: all 0.2s; }
+  .day-card:hover .day-arrow-icon { background: var(--card-accent, var(--accent)); transform: translateX(3px); }
+
+  /* Color variants per category */
+  .cat-foundation { --card-accent: #6366f1; }
+  .cat-data { --card-accent: #06b6d4; }
+  .cat-reliability { --card-accent: #10b981; }
+  .cat-architecture { --card-accent: #f59e0b; }
+  .cat-consistency { --card-accent: #a855f7; }
+  .cat-ops { --card-accent: #ef4444; }
+
+  .badge-foundation { background: var(--accent-bg); color: var(--accent2); }
+  .badge-data { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-reliability { background: var(--green-bg); color: var(--green); }
+  .badge-architecture { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-consistency { background: var(--purple-bg); color: var(--purple); }
+  .badge-ops { background: var(--red-bg); color: var(--red); }
+
+  /* Progress bar */
+  .progress-section { margin-bottom: 3rem; }
+  .progress-title { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; }
+  .progress-track { height: 8px; background: var(--bg3); border-radius: 100px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent) 0%, #10b981 100%); border-radius: 100px; transition: width 1s ease; }
+  .progress-labels { display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.75rem; color: var(--text2); }
+
+  /* Section header */
+  .section-header { margin: 2.5rem 0 1.25rem; }
+  .section-header h2 { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+  .section-header h2 .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Callout */
+  .callout { background: linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(16,185,129,0.07) 100%); border: 1px solid rgba(99,102,241,0.3); border-radius: 16px; padding: 2rem; margin-top: 3rem; text-align: center; }
+  .callout h3 { font-size: 1.2rem; font-weight: 800; margin-bottom: 0.5rem; }
+  .callout p { color: var(--text2); font-size: 0.95rem; }
+</style>
+</head>
+<body>
+<nav>
+  <span class="nav-brand">Scaling & Architecture</span>
+  <div class="nav-right">
+    <span class="nav-stat"><span>23</span> concepts covered</span>
+    <button class="theme-btn" onclick="toggleTheme()">☀️ Light</button>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-eyebrow">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M6 4v2.5l1.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      25-Day Learning Series
+    </div>
+    <h1>Scaling & <span class="accent">Architecture</span></h1>
+    <p class="hero-sub">23 days, 23 concepts, one complete mental model for building scalable systems. From load balancing to distributed transactions — the foundations every systems engineer needs.</p>
+    <div class="hero-stats">
+      <div class="stat">
+        <div class="stat-num">23</div>
+        <div class="stat-label">Concepts</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">6</div>
+        <div class="stat-label">Categories</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">∞</div>
+        <div class="stat-label">Applications</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-section">
+    <div class="progress-title">
+      <span>Series Progress</span>
+      <span style="font-size:0.85rem;color:var(--accent);font-weight:600;">23 / 25 complete</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" style="width: 92%"></div>
+    </div>
+    <div class="progress-labels">
+      <span>Day 1</span>
+      <span>Day 25</span>
+    </div>
+  </div>
+
+  <!-- Category filters -->
+  <div class="filters">
+    <div class="filter-pill active" onclick="filterCards('all', this)">All Days</div>
+    <div class="filter-pill" onclick="filterCards('foundation', this)">🏗 Foundations</div>
+    <div class="filter-pill" onclick="filterCards('data', this)">💾 Data Layer</div>
+    <div class="filter-pill" onclick="filterCards('reliability', this)">🛡 Reliability</div>
+    <div class="filter-pill" onclick="filterCards('architecture', this)">🏛 Architecture</div>
+    <div class="filter-pill" onclick="filterCards('consistency', this)">⚖ Consistency</div>
+    <div class="filter-pill" onclick="filterCards('ops', this)">⚙ Operations</div>
+  </div>
+
+  <!-- Days Grid -->
+  <div class="days-grid" id="daysGrid">
+
+    <!-- Day 1 -->
+    <a href="day1.html" class="day-card cat-foundation" data-cat="foundation">
+      <div class="day-card-top">
+        <span class="day-num">Day 01</span>
+        <span class="day-badge badge-foundation">Foundations</span>
+      </div>
+      <div class="day-title">Load Balancing</div>
+      <div class="day-desc">How traffic is distributed across servers, algorithms (round-robin, least-connections, consistent hashing), and why it's the entry point to horizontal scale.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 2 -->
+    <a href="day2.html" class="day-card cat-foundation" data-cat="foundation">
+      <div class="day-card-top">
+        <span class="day-num">Day 02</span>
+        <span class="day-badge badge-foundation">Foundations</span>
+      </div>
+      <div class="day-title">CDN</div>
+      <div class="day-desc">Content Delivery Networks — edge caching, PoPs, cache-control headers, and how putting content close to users eliminates intercontinental latency.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 3 -->
+    <a href="day3.html" class="day-card cat-foundation" data-cat="foundation">
+      <div class="day-card-top">
+        <span class="day-num">Day 03</span>
+        <span class="day-badge badge-foundation">Foundations</span>
+      </div>
+      <div class="day-title">Caching</div>
+      <div class="day-desc">Cache hierarchies, eviction policies (LRU, LFU, TTL), write strategies (write-through, write-back, write-around), and when caching hurts more than it helps.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 4 -->
+    <a href="day4.html" class="day-card cat-foundation" data-cat="foundation">
+      <div class="day-card-top">
+        <span class="day-num">Day 04</span>
+        <span class="day-badge badge-foundation">Foundations</span>
+      </div>
+      <div class="day-title">Cache Invalidation</div>
+      <div class="day-desc">The hardest problem in computer science made concrete: TTL vs event-driven invalidation, thundering herd, stale reads, and the cache stampede problem.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 5 -->
+    <a href="day5.html" class="day-card cat-foundation" data-cat="foundation">
+      <div class="day-card-top">
+        <span class="day-num">Day 05</span>
+        <span class="day-badge badge-foundation">Foundations</span>
+      </div>
+      <div class="day-title">Rate Limiting</div>
+      <div class="day-desc">Token bucket, leaky bucket, fixed and sliding window algorithms. Protecting services from abuse, bursty traffic, and cascading failure from runaway clients.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 6 -->
+    <a href="day6.html" class="day-card cat-foundation" data-cat="foundation">
+      <div class="day-card-top">
+        <span class="day-num">Day 06</span>
+        <span class="day-badge badge-foundation">Foundations</span>
+      </div>
+      <div class="day-title">API Gateway</div>
+      <div class="day-desc">The entry point to your backend — auth, routing, rate limiting, protocol translation, and how a gateway becomes both an enabler and a single point of failure.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 7 -->
+    <a href="day7.html" class="day-card cat-consistency" data-cat="consistency">
+      <div class="day-card-top">
+        <span class="day-num">Day 07</span>
+        <span class="day-badge badge-consistency">Consistency</span>
+      </div>
+      <div class="day-title">CAP Theorem</div>
+      <div class="day-desc">Consistency, Availability, and Partition Tolerance — you can't have all three. Understanding what you're actually trading and what CAP doesn't tell you.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 8 -->
+    <a href="day8.html" class="day-card cat-data" data-cat="data">
+      <div class="day-card-top">
+        <span class="day-num">Day 08</span>
+        <span class="day-badge badge-data">Data Layer</span>
+      </div>
+      <div class="day-title">Sharding</div>
+      <div class="day-desc">Horizontal data partitioning — range, hash, and directory-based strategies, hotspot problems, cross-shard queries, and the cost of resharding.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 9 -->
+    <a href="day9.html" class="day-card cat-data" data-cat="data">
+      <div class="day-card-top">
+        <span class="day-num">Day 09</span>
+        <span class="day-badge badge-data">Data Layer</span>
+      </div>
+      <div class="day-title">Replication</div>
+      <div class="day-desc">Leader-follower vs leaderless, synchronous vs async replication, replication lag, read-your-writes consistency, and multi-region replication challenges.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 10 -->
+    <a href="day10.html" class="day-card cat-data" data-cat="data">
+      <div class="day-card-top">
+        <span class="day-num">Day 10</span>
+        <span class="day-badge badge-data">Data Layer</span>
+      </div>
+      <div class="day-title">Partitioning</div>
+      <div class="day-desc">Data partitioning strategies beyond simple sharding — range scans, secondary indexes on partitioned data, partition pruning, and when NoSQL wins.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 11 -->
+    <a href="day11.html" class="day-card cat-reliability" data-cat="reliability">
+      <div class="day-card-top">
+        <span class="day-num">Day 11</span>
+        <span class="day-badge badge-reliability">Reliability</span>
+      </div>
+      <div class="day-title">Message Queues</div>
+      <div class="day-desc">Decoupling producers from consumers, durability guarantees, at-least-once vs exactly-once delivery, backpressure, and the dead letter queue.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 12 -->
+    <a href="day12.html" class="day-card cat-architecture" data-cat="architecture">
+      <div class="day-card-top">
+        <span class="day-num">Day 12</span>
+        <span class="day-badge badge-architecture">Architecture</span>
+      </div>
+      <div class="day-title">Microservices</div>
+      <div class="day-desc">Service decomposition, API contracts, service mesh, inter-service communication patterns, and how microservices trade deployment speed for operational complexity.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 13 -->
+    <a href="day13.html" class="day-card cat-architecture" data-cat="architecture">
+      <div class="day-card-top">
+        <span class="day-num">Day 13</span>
+        <span class="day-badge badge-architecture">Architecture</span>
+      </div>
+      <div class="day-title">Monolith vs Microservices</div>
+      <div class="day-desc">The real tradeoffs — deployment coupling, team boundaries, operational overhead, when monolith-first is right, and when the seams are worth the cost.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 14 -->
+    <a href="day14.html" class="day-card cat-reliability" data-cat="reliability">
+      <div class="day-card-top">
+        <span class="day-num">Day 14</span>
+        <span class="day-badge badge-reliability">Reliability</span>
+      </div>
+      <div class="day-title">Fault Tolerance</div>
+      <div class="day-desc">Circuit breakers, bulkheads, retries with exponential backoff, timeouts, graceful degradation, and designing systems that fail safely instead of catastrophically.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 15 -->
+    <a href="day15.html" class="day-card cat-data" data-cat="data">
+      <div class="day-card-top">
+        <span class="day-num">Day 15</span>
+        <span class="day-badge badge-data">Data Layer</span>
+      </div>
+      <div class="day-title">Database Scaling</div>
+      <div class="day-desc">Read replicas, connection pooling, query optimization, vertical vs horizontal DB scaling, and the spectrum from single Postgres to globally distributed NewSQL.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 16 -->
+    <a href="day16.html" class="day-card cat-ops" data-cat="ops">
+      <div class="day-card-top">
+        <span class="day-num">Day 16</span>
+        <span class="day-badge badge-ops">Operations</span>
+      </div>
+      <div class="day-title">Service Discovery</div>
+      <div class="day-desc">How services find each other in dynamic environments — client-side vs server-side discovery, DNS-based, registry-based (Consul, etcd), and health checking.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 17 -->
+    <a href="day17.html" class="day-card cat-consistency" data-cat="consistency">
+      <div class="day-card-top">
+        <span class="day-num">Day 17</span>
+        <span class="day-badge badge-consistency">Consistency</span>
+      </div>
+      <div class="day-title">Consistency Models</div>
+      <div class="day-desc">The spectrum from linearizability to eventual consistency — serializability, read-your-writes, monotonic reads, causal consistency, and what each model costs.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 18 -->
+    <a href="day18.html" class="day-card cat-consistency" data-cat="consistency">
+      <div class="day-card-top">
+        <span class="day-num">Day 18</span>
+        <span class="day-badge badge-consistency">Consistency</span>
+      </div>
+      <div class="day-title">Eventual Consistency</div>
+      <div class="day-desc">How distributed systems converge without coordination — conflict resolution (LWW, CRDTs), anti-entropy, vector clocks, and building UI for eventually consistent data.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 19 -->
+    <a href="day19.html" class="day-card cat-consistency" data-cat="consistency">
+      <div class="day-card-top">
+        <span class="day-num">Day 19</span>
+        <span class="day-badge badge-consistency">Consistency</span>
+      </div>
+      <div class="day-title">Distributed Transactions</div>
+      <div class="day-desc">2PC, 3PC, Saga pattern, compensating transactions — why distributed transactions are hard, when to use them, and when sagas are the right alternative.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 20 -->
+    <a href="day20.html" class="day-card cat-reliability" data-cat="reliability">
+      <div class="day-card-top">
+        <span class="day-num">Day 20</span>
+        <span class="day-badge badge-reliability">Reliability</span>
+      </div>
+      <div class="day-title">Leader Election</div>
+      <div class="day-desc">Raft, Paxos, lease-based election, fencing tokens to prevent split-brain. Why distributed consensus is brutal to get right and what happens when you get it wrong.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--text2);">Read →</span>
+        <div class="day-arrow-icon">→</div>
+      </div>
+    </a>
+
+    <!-- Day 21 — NEW -->
+    <a href="day21.html" class="day-card cat-architecture" data-cat="architecture" style="border-color:var(--accent);">
+      <div class="day-card-top">
+        <span class="day-num">Day 21</span>
+        <span class="day-badge badge-architecture">Architecture</span>
+      </div>
+      <div class="day-title">Horizontal vs Vertical Scaling</div>
+      <div class="day-desc">Scale up vs scale out — hard ceilings, cost curves, when vertical is right, how horizontal raises the complexity floor permanently, and the transition playbook.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--accent);font-weight:600;">New ✦</span>
+        <div class="day-arrow-icon" style="background:var(--accent-bg);">→</div>
+      </div>
+    </a>
+
+    <!-- Day 22 — NEW -->
+    <a href="day22.html" class="day-card cat-ops" data-cat="ops" style="border-color:var(--accent);">
+      <div class="day-card-top">
+        <span class="day-num">Day 22</span>
+        <span class="day-badge badge-ops">Operations</span>
+      </div>
+      <div class="day-title">Back-of-the-Envelope Estimation</div>
+      <div class="day-desc">Fermi estimation for engineers — latency numbers to memorize, QPS and storage formulas, worked URL shortener example, and the fan-out math that rules out bad designs.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--accent);font-weight:600;">New ✦</span>
+        <div class="day-arrow-icon" style="background:var(--accent-bg);">→</div>
+      </div>
+    </a>
+
+    <!-- Day 23 — NEW — Series Finale -->
+    <a href="day23.html" class="day-card cat-reliability" data-cat="reliability" style="border-color:var(--green);background:linear-gradient(135deg,var(--bg2) 0%,rgba(16,185,129,0.04) 100%);">
+      <div class="day-card-top">
+        <span class="day-num">Day 23</span>
+        <span class="day-badge badge-reliability">Series Finale ✦</span>
+      </div>
+      <div class="day-title">Idempotency + Data Locality</div>
+      <div class="day-desc">Two unglamorous ideas that dominate incident reports — idempotency keys to make retries safe, co-location strategies to eliminate unnecessary network hops.</div>
+      <div class="day-arrow">
+        <span style="font-size:0.78rem;color:var(--green);font-weight:600;">Finale ★</span>
+        <div class="day-arrow-icon" style="background:var(--green-bg);">→</div>
+      </div>
+    </a>
+
+  </div>
+
+  <!-- Bottom callout -->
+  <div class="callout">
+    <h3>"The foundation is complete."</h3>
+    <p style="margin-top:0.5rem;">23 concepts. From the first HTTP request hitting a load balancer to the idempotency key that makes the payment retry safe. Every complex system you'll ever design builds on these foundations.</p>
+    <p style="margin-top:0.75rem;color:var(--accent);font-weight:600;font-size:0.9rem;">— 25-Day Scaling & Architecture Series</p>
+  </div>
+
+</div>
+
+<script>
+function toggleTheme() {
+  const html = document.documentElement;
+  const btn = document.querySelector('.theme-btn');
+  if (html.dataset.theme === 'dark') {
+    html.dataset.theme = 'light';
+    btn.textContent = '🌙 Dark';
+  } else {
+    html.dataset.theme = 'dark';
+    btn.textContent = '☀️ Light';
+  }
+}
+
+function filterCards(cat, pillEl) {
+  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  pillEl.classList.add('active');
+  const cards = document.querySelectorAll('.day-card');
+  cards.forEach(card => {
+    if (cat === 'all' || card.dataset.cat === cat) {
+      card.style.display = 'flex';
+      card.style.opacity = '1';
+    } else {
+      card.style.opacity = '0.3';
+      card.style.pointerEvents = 'none';
+    }
+  });
+  if (cat !== 'all') {
+    // Re-enable matching cards pointer events
+    document.querySelectorAll(`.day-card[data-cat="${cat}"]`).forEach(c => {
+      c.style.pointerEvents = 'auto';
+      c.style.opacity = '1';
+    });
+  } else {
+    cards.forEach(card => { card.style.pointerEvents = 'auto'; });
+  }
+}
+
+// Animate cards on load
+const cards = document.querySelectorAll('.day-card');
+cards.forEach((card, i) => {
+  card.style.opacity = '0';
+  card.style.transform = 'translateY(16px)';
+  setTimeout(() => {
+    card.style.transition = 'opacity 0.4s ease, transform 0.4s ease, border-color 0.2s, box-shadow 0.2s';
+    card.style.opacity = '1';
+    card.style.transform = 'translateY(0)';
+  }, 60 + i * 35);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 3 — Caching (5 Layers) | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --purple: #a855f7; --purple-bg: rgba(168,85,247,0.12);
+    --orange: #f97316; --orange-bg: rgba(249,115,22,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --bg2: #f8fafc; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #0f172a; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(255,255,255,0.92); --purple: #9333ea; --purple-bg: rgba(147,51,234,0.08);
+    --orange: #ea580c; --orange-bg: rgba(234,88,12,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 600px; }
+  .hero-meta { margin-top: 1rem; font-size: 0.8rem; color: var(--text2); }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  /* Cache layers visual */
+  .cache-layer { display: flex; align-items: stretch; margin-bottom: 0.6rem; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); transition: all 0.2s; }
+  .cache-layer:hover { border-color: var(--accent); transform: translateX(4px); }
+  .layer-num { width: 40px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1rem; flex-shrink: 0; }
+  .layer-content { flex: 1; padding: 1rem 1.2rem; background: var(--bg2); }
+  .layer-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 0.2rem; }
+  .layer-detail { font-size: 0.83rem; color: var(--text2); }
+  .layer-latency { padding: 0.75rem 1rem; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; flex-shrink: 0; min-width: 90px; text-align: center; }
+  @media (max-width: 640px) { nav { padding: 0 1rem; gap: 1rem; } .page { padding: 72px 1rem 3rem; } .layer-latency { min-width: 70px; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">Day 3 · Caching</span>
+  <div class="nav-links">
+    <a href="#overview">5 Layers</a>
+    <a href="#diagram">Diagram</a>
+    <a href="#redis">Redis vs Memcached</a>
+    <a href="#patterns">Patterns</a>
+    <a href="#dont-use">Don't Use Redis For</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀ Light</button>
+</nav>
+
+<div class="page">
+
+  <header class="hero">
+    <div class="hero-tag">25-Day Scaling & Architecture · Day 3 of 25</div>
+    <h1>Caching — <span>5 Layers</span></h1>
+    <p class="hero-sub">From browser to hardware — every layer that stands between your users and your database, with latency numbers attached.</p>
+    <p class="hero-meta">Source: 25-Day Scaling & Architecture Series</p>
+  </header>
+
+  <!-- 5 LAYERS -->
+  <section id="overview">
+    <h2 class="section-title"><span class="num">1</span> The 5 Cache Layers</h2>
+    <p style="color:var(--text2); font-size:0.9rem; margin-bottom:1.5rem;">Ordered from closest to the user (fastest, cheapest) to closest to hardware (slowest to reach, but huge impact when effective).</p>
+
+    <!-- Layer 1: Browser -->
+    <div class="cache-layer">
+      <div class="layer-num" style="background:rgba(99,102,241,0.2); color:#818cf8;">1</div>
+      <div class="layer-content">
+        <div class="layer-title" style="color:#818cf8;">Browser Cache</div>
+        <div class="layer-detail">Cache-Control headers tell the browser how long to keep a resource. Version filenames (app-v2.5.js) allow aggressive caching — when code changes, filename changes, cache busted automatically.</div>
+      </div>
+      <div class="layer-latency" style="background:rgba(99,102,241,0.15); color:#818cf8;">0 ms</div>
+    </div>
+
+    <!-- Layer 2: CDN -->
+    <div class="cache-layer">
+      <div class="layer-num" style="background:rgba(16,185,129,0.2); color:#10b981;">2</div>
+      <div class="layer-content">
+        <div class="layer-title" style="color:#10b981;">CDN Edge Cache</div>
+        <div class="layer-detail">Regional servers cache content near users. Key benefit: thousands of users share a single origin fill — if 1,000 users in Singapore hit the same asset, origin serves it once and all 1,000 get the cached version.</div>
+      </div>
+      <div class="layer-latency" style="background:rgba(16,185,129,0.15); color:#10b981;">5-20 ms</div>
+    </div>
+
+    <!-- Layer 3: Application Cache -->
+    <div class="cache-layer">
+      <div class="layer-num" style="background:rgba(245,158,11,0.2); color:#f59e0b;">3</div>
+      <div class="layer-content">
+        <div class="layer-title" style="color:#f59e0b;">Application Cache (Redis / Memcached)</div>
+        <div class="layer-detail">In-memory cache sitting between your application and database. Uses the cache-aside pattern: check cache first, hit returns immediately, miss fetches from DB, stores in cache, returns. Transforms 20-100ms DB queries into 1-5ms cache reads.</div>
+      </div>
+      <div class="layer-latency" style="background:rgba(245,158,11,0.15); color:#f59e0b;">1-5 ms</div>
+    </div>
+
+    <!-- Layer 4: DB Query Cache -->
+    <div class="cache-layer">
+      <div class="layer-num" style="background:rgba(249,115,22,0.2); color:#f97316;">4</div>
+      <div class="layer-content">
+        <div class="layer-title" style="color:#f97316;">Database Query Cache</div>
+        <div class="layer-detail">DB-internal caching of query results. Note: MySQL removed its query cache in v8.0 (it was a bottleneck). PostgreSQL uses prepared statements and shared buffers instead. Don't rely on this layer — use application-level caching instead.</div>
+      </div>
+      <div class="layer-latency" style="background:rgba(249,115,22,0.15); color:#f97316;">~20-100 ms</div>
+    </div>
+
+    <!-- Layer 5: OS Page Cache -->
+    <div class="cache-layer">
+      <div class="layer-num" style="background:rgba(168,85,247,0.2); color:#a855f7;">5</div>
+      <div class="layer-content">
+        <div class="layer-title" style="color:#a855f7;">OS Page Cache</div>
+        <div class="layer-detail">The OS automatically caches frequently read disk blocks in RAM — no configuration required. When your entire database fits in RAM, disk reads are served from this cache at near-memory speed. This is why more RAM helps a database more than more CPU.</div>
+      </div>
+      <div class="layer-latency" style="background:rgba(168,85,247,0.15); color:#a855f7;">~0-5 ms<br><span style="font-size:0.7rem;font-weight:400;">if in RAM</span></div>
+    </div>
+
+    <div class="takeaway">
+      <div class="takeaway-label">💡 OS Page Cache Insight</div>
+      <p>If your entire database fits in RAM, every query is essentially a memory read. This is why adding RAM to a database server often improves performance dramatically — the OS page cache does the work for you without any code changes.</p>
+    </div>
+  </section>
+
+  <!-- SVG: 5 Layer Stack Diagram -->
+  <section id="diagram">
+    <h2 class="section-title"><span class="num">2</span> Visual Stack Diagram</h2>
+    <div class="svg-wrap">
+      <svg width="680" height="390" viewBox="0 0 680 390" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+        <!-- User icon on left -->
+        <circle cx="40" cy="195" r="24" fill="#6366f1" opacity="0.15" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="40" y="191" text-anchor="middle" font-size="16">👤</text>
+        <text x="40" y="208" text-anchor="middle" font-size="9" fill="#94a3b8">User</text>
+
+        <!-- Arrow -->
+        <path d="M65 195 L100 195" stroke="#6366f1" stroke-width="2" marker-end="url(#arr)"/>
+
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#6366f1"/>
+          </marker>
+        </defs>
+
+        <!-- Layer 1: Browser -->
+        <rect x="100" y="160" width="95" height="70" rx="8" fill="#6366f1" opacity="0.18" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="147" y="185" text-anchor="middle" font-size="10" font-weight="700" fill="#818cf8">Browser</text>
+        <text x="147" y="200" text-anchor="middle" font-size="9" fill="#818cf8">Cache</text>
+        <text x="147" y="220" text-anchor="middle" font-size="11" font-weight="800" fill="#818cf8">0ms</text>
+
+        <!-- Arrow -->
+        <path d="M195 195 L230 195" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- Layer 2: CDN -->
+        <rect x="230" y="148" width="95" height="95" rx="8" fill="#10b981" opacity="0.15" stroke="#10b981" stroke-width="1.5"/>
+        <text x="277" y="173" text-anchor="middle" font-size="10" font-weight="700" fill="#10b981">CDN Edge</text>
+        <text x="277" y="188" text-anchor="middle" font-size="9" fill="#10b981">Cache</text>
+        <text x="277" y="225" text-anchor="middle" font-size="11" font-weight="800" fill="#10b981">5-20ms</text>
+
+        <!-- Arrow -->
+        <path d="M325 195 L360 195" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- Layer 3: App Cache -->
+        <rect x="360" y="136" width="95" height="120" rx="8" fill="#f59e0b" opacity="0.15" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="407" y="162" text-anchor="middle" font-size="10" font-weight="700" fill="#f59e0b">App Cache</text>
+        <text x="407" y="177" text-anchor="middle" font-size="9" fill="#f59e0b">Redis</text>
+        <text x="407" y="230" text-anchor="middle" font-size="11" font-weight="800" fill="#f59e0b">1-5ms</text>
+
+        <!-- Arrow -->
+        <path d="M455 195 L490 195" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- Layer 4: DB Query Cache -->
+        <rect x="490" y="124" width="88" height="144" rx="8" fill="#f97316" opacity="0.15" stroke="#f97316" stroke-width="1.5"/>
+        <text x="534" y="152" text-anchor="middle" font-size="10" font-weight="700" fill="#f97316">DB Query</text>
+        <text x="534" y="167" text-anchor="middle" font-size="9" fill="#f97316">Cache</text>
+        <text x="534" y="240" text-anchor="middle" font-size="11" font-weight="800" fill="#f97316">20-100ms</text>
+
+        <!-- Arrow -->
+        <path d="M578 195 L610 195" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- Layer 5: OS Page Cache -->
+        <rect x="608" y="110" width="62" height="174" rx="8" fill="#a855f7" opacity="0.15" stroke="#a855f7" stroke-width="1.5"/>
+        <text x="639" y="140" text-anchor="middle" font-size="9" font-weight="700" fill="#a855f7">OS Page</text>
+        <text x="639" y="155" text-anchor="middle" font-size="9" fill="#a855f7">Cache</text>
+        <text x="639" y="262" text-anchor="middle" font-size="10" font-weight="800" fill="#a855f7">~0ms</text>
+        <text x="639" y="275" text-anchor="middle" font-size="8" fill="#a855f7">in RAM</text>
+
+        <!-- Labels at bottom -->
+        <text x="147" y="255" text-anchor="middle" font-size="9" fill="#64748b">Closest</text>
+        <text x="147" y="267" text-anchor="middle" font-size="9" fill="#64748b">to user</text>
+        <text x="639" y="305" text-anchor="middle" font-size="9" fill="#64748b">Hardware</text>
+        <text x="639" y="317" text-anchor="middle" font-size="9" fill="#64748b">level</text>
+
+        <!-- "Request flows right" label -->
+        <text x="340" y="370" text-anchor="middle" font-size="11" fill="#64748b">Each miss propagates right → next layer handles it</text>
+
+        <!-- Latency compare bar -->
+        <text x="100" y="360" font-size="9" fill="#6366f1">0ms</text>
+        <text x="230" y="360" font-size="9" fill="#10b981">5-20ms</text>
+        <text x="360" y="360" font-size="9" fill="#f59e0b">1-5ms</text>
+        <text x="490" y="360" font-size="9" fill="#f97316">20-100ms</text>
+        <text x="605" y="360" font-size="9" fill="#a855f7">0-5ms</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- CACHE-ASIDE PATTERN -->
+  <section id="patterns">
+    <h2 class="section-title"><span class="num">3</span> Cache-Aside Pattern (Read Path)</h2>
+    <div class="card">
+      <p style="font-size:0.9rem; color:var(--text2); margin-bottom:1.25rem;">The most common caching pattern. Application code controls what gets cached and when.</p>
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:0.75rem;">
+        <div style="background:var(--bg3); border-radius:10px; padding:1rem; text-align:center;">
+          <div style="font-size:1.5rem; margin-bottom:0.4rem;">1️⃣</div>
+          <div style="font-weight:700; font-size:0.9rem; color:var(--accent2); margin-bottom:0.3rem;">Check Redis</div>
+          <div style="font-size:0.82rem; color:var(--text2);">App checks cache for key before going to DB</div>
+        </div>
+        <div style="background:var(--green-bg); border:1px solid var(--green); border-radius:10px; padding:1rem; text-align:center;">
+          <div style="font-size:1.5rem; margin-bottom:0.4rem;">✅</div>
+          <div style="font-weight:700; font-size:0.9rem; color:var(--green); margin-bottom:0.3rem;">Cache Hit</div>
+          <div style="font-size:0.82rem; color:var(--text2);">Key found → return immediately. 1-5ms done.</div>
+        </div>
+        <div style="background:var(--red-bg); border:1px solid var(--red); border-radius:10px; padding:1rem; text-align:center;">
+          <div style="font-size:1.5rem; margin-bottom:0.4rem;">❌</div>
+          <div style="font-weight:700; font-size:0.9rem; color:var(--red); margin-bottom:0.3rem;">Cache Miss</div>
+          <div style="font-size:0.82rem; color:var(--text2);">Not found → query DB (20-100ms)</div>
+        </div>
+        <div style="background:var(--bg3); border-radius:10px; padding:1rem; text-align:center;">
+          <div style="font-size:1.5rem; margin-bottom:0.4rem;">💾</div>
+          <div style="font-weight:700; font-size:0.9rem; color:var(--accent2); margin-bottom:0.3rem;">Store & Return</div>
+          <div style="font-size:0.82rem; color:var(--text2);">Store in Redis with TTL, return to caller. Next request is a hit.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REDIS VS MEMCACHED -->
+  <section id="redis">
+    <h2 class="section-title"><span class="num">4</span> Redis vs Memcached</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Redis</th>
+            <th>Memcached</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Data structures</strong></td>
+            <td>Strings, hashes, lists, sets, sorted sets, streams, geospatial</td>
+            <td>Strings only (key-value)</td>
+          </tr>
+          <tr>
+            <td><strong>Threading model</strong></td>
+            <td>Single-threaded (mostly) + I/O threads</td>
+            <td>Multi-threaded natively</td>
+          </tr>
+          <tr>
+            <td><strong>Persistence</strong></td>
+            <td>RDB snapshots + AOF log</td>
+            <td>None — memory only</td>
+          </tr>
+          <tr>
+            <td><strong>Replication</strong></td>
+            <td>Master-replica built-in</td>
+            <td>No built-in replication</td>
+          </tr>
+          <tr>
+            <td><strong>Pub/Sub</strong></td>
+            <td>Yes — built in</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><strong>Best for</strong></td>
+            <td>Rich data structures, sessions, leaderboards, pub/sub</td>
+            <td>Simple, ultra-high-throughput key-value caching</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="takeaway">
+      <div class="takeaway-label">💡 Rule of Thumb</div>
+      <p>Pick Redis by default (95% of use cases). Choose Memcached only when you need maximum multi-threaded throughput for pure string caching with no other features needed.</p>
+    </div>
+  </section>
+
+  <!-- WHEN NOT TO USE REDIS -->
+  <section id="dont-use">
+    <h2 class="section-title"><span class="num">5</span> When NOT to Use Redis</h2>
+    <div style="background:var(--red-bg); border:1px solid var(--red); border-radius:12px; padding:1.5rem;">
+      <p style="font-size:0.85rem; color:var(--red); font-weight:700; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.75rem;">Avoid Redis caching when:</p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:0.75rem;">
+        <div style="background:var(--bg2); border-radius:8px; padding:0.85rem;">
+          <strong style="color:var(--red); font-size:0.88rem;">🔄 Data changes every request</strong>
+          <p style="font-size:0.82rem; color:var(--text2); margin-top:0.3rem;">Cache TTL expires before any hit. You're paying cache overhead with zero benefit.</p>
+        </div>
+        <div style="background:var(--bg2); border-radius:8px; padding:0.85rem;">
+          <strong style="color:var(--red); font-size:0.88rem;">📦 Very large objects</strong>
+          <p style="font-size:0.82rem; color:var(--text2); margin-top:0.3rem;">Redis is in-memory. Caching 50MB objects burns expensive RAM. Serialize to smaller representations or don't cache.</p>
+        </div>
+        <div style="background:var(--bg2); border-radius:8px; padding:0.85rem;">
+          <strong style="color:var(--red); font-size:0.88rem;">💰 Staleness = lost money</strong>
+          <p style="font-size:0.82rem; color:var(--text2); margin-top:0.3rem;">Inventory counts, financial balances, real-time pricing. A stale cache causes business harm.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <h2 class="section-title"><span class="num">6</span> Quick Reference</h2>
+    <div class="cheatsheet">
+      <div class="cs-title">📋 Caching Cheat Sheet</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>Static assets (JS, CSS, images)</strong>
+          Browser Cache + CDN. Use versioned filenames.
+        </div>
+        <div class="cs-item">
+          <strong>API responses (same for everyone)</strong>
+          CDN edge cache. Set appropriate TTL.
+        </div>
+        <div class="cs-item">
+          <strong>Expensive computed results</strong>
+          Redis (cache-aside). Cache on first request, TTL based on freshness needs.
+        </div>
+        <div class="cs-item">
+          <strong>User sessions</strong>
+          Redis. Fast reads, rich data structure support.
+        </div>
+        <div class="cs-item">
+          <strong>Leaderboards / rankings</strong>
+          Redis sorted sets. Native O(log N) operations.
+        </div>
+        <div class="cs-item">
+          <strong>Simple string-only, max throughput</strong>
+          Memcached over Redis.
+        </div>
+        <div class="cs-item">
+          <strong>DB in RAM fully</strong>
+          OS page cache handles most reads. Add RAM before CPU.
+        </div>
+        <div class="cs-item">
+          <strong>MySQL query cache</strong>
+          Removed in 8.0. Don't rely on it. Use app-level cache.
+        </div>
+        <div class="cs-item">
+          <strong>Cache-aside miss latency</strong>
+          1-5ms Redis hit vs 20-100ms DB query.
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  function toggleTheme() {
+    const root = document.documentElement;
+    const btn = document.querySelector('.theme-btn');
+    if (root.dataset.theme === 'dark') { root.dataset.theme = 'light'; btn.textContent = '🌙 Dark'; }
+    else { root.dataset.theme = 'dark'; btn.textContent = '☀ Light'; }
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

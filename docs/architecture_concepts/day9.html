@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 9 — Replication | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #1e293b; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(248,250,252,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 640px; }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .card p, .card ul { font-size: 0.9rem; color: var(--text2); }
+  .card ul { padding-left: 1.2rem; }
+  .card ul li { margin-bottom: 0.35rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .danger-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 0.4rem; }
+  .success { background: var(--green-bg); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .success-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-purple { background: var(--accent-bg); color: var(--accent2); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  code { background: var(--bg3); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: var(--green); }
+  .failover-steps { display: flex; flex-direction: column; gap: 0.4rem; }
+  .failover-step { display: flex; gap: 1rem; align-items: flex-start; padding: 0.75rem 1rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; font-size: 0.88rem; }
+  .failover-step .step-n { width: 24px; height: 24px; background: var(--accent-bg); color: var(--accent2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+  @media (max-width: 640px) { nav { padding: 0 1rem; gap: 1rem; } .page { padding: 72px 1rem 3rem; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">Day 9 · Replication</span>
+  <div class="nav-links">
+    <a href="#what">What Is It</a>
+    <a href="#modes">Sync vs Async</a>
+    <a href="#diagram">WAL Diagram</a>
+    <a href="#lag">Replication Lag</a>
+    <a href="#failover">Failover</a>
+    <a href="#splitbrain">Split Brain</a>
+    <a href="#topologies">Topologies</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀ Light</button>
+</nav>
+
+<div class="page">
+  <header class="hero">
+    <div class="hero-tag">Day 9 of 25 · Scaling & Architecture</div>
+    <h1>Database <span>Replication</span></h1>
+    <p class="hero-sub">Keeping multiple copies of data on different machines — the foundation of durability, read scaling, and high availability.</p>
+  </header>
+
+  <!-- WHAT IS IT -->
+  <section id="what">
+    <h2 class="section-title"><span class="num">1</span> What Is Replication &amp; Why It Matters</h2>
+    <div class="card">
+      <p style="font-size:1rem; margin-bottom:1rem;">Replication = <strong>keeping multiple copies of data on different machines</strong>. It's not just backup — it's the foundation of four critical capabilities:</p>
+      <div class="card-grid" style="margin-top:0.5rem;">
+        <div class="card">
+          <h3 style="color:var(--green);">🛡️ Hardware Failure</h3>
+          <p>When a disk or server dies, another replica takes over. No data loss, minimal downtime.</p>
+        </div>
+        <div class="card">
+          <h3 style="color:var(--accent2);">📈 Read Scaling</h3>
+          <p>Route read-heavy traffic to replicas. Offload 80%+ of queries from the primary.</p>
+        </div>
+        <div class="card">
+          <h3 style="color:var(--cyan);">🌍 Geographic Performance</h3>
+          <p>Replica in Singapore serves Singapore users with low latency — no round-trip to US.</p>
+        </div>
+        <div class="card">
+          <h3 style="color:var(--yellow);">🔧 Zero-Downtime Maintenance</h3>
+          <p>Promote replica to primary, do maintenance on old primary, rejoin as replica.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SYNC VS ASYNC -->
+  <section id="modes">
+    <h2 class="section-title"><span class="num">2</span> Synchronous vs Asynchronous vs Semi-Synchronous</h2>
+    <div class="card-grid">
+      <div class="card" style="border-color:var(--accent);">
+        <h3 style="color:var(--accent2);">🔒 Synchronous Replication</h3>
+        <p style="margin-bottom:0.75rem;">Leader waits for follower acknowledgment <em>before</em> confirming the write to the client.</p>
+        <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+          <span class="badge badge-green">✅ Strong consistency</span>
+          <span class="badge badge-green">✅ Zero data loss</span>
+          <span class="badge badge-red">❌ Slower writes</span>
+          <span class="badge badge-red">❌ Extra network RTT per write</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text2);">If the sync follower goes down, writes block until it recovers or gets demoted to async.</p>
+      </div>
+      <div class="card" style="border-color:var(--green);">
+        <h3 style="color:var(--green);">⚡ Asynchronous Replication</h3>
+        <p style="margin-bottom:0.75rem;">Leader confirms write immediately to client, then sends changes to followers in background.</p>
+        <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+          <span class="badge badge-green">✅ Fast writes</span>
+          <span class="badge badge-green">✅ Follower failure doesn't block writes</span>
+          <span class="badge badge-red">❌ Data loss if leader dies before sync</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text2);">Replicas are "eventually consistent" — lag can be milliseconds to seconds.</p>
+      </div>
+      <div class="card" style="border-color:var(--yellow);">
+        <h3 style="color:var(--yellow);">⚖️ Semi-Synchronous (Production Choice)</h3>
+        <p style="margin-bottom:0.75rem;"><strong>One follower synchronous</strong> (durability guarantee) + rest async (speed). Best of both worlds.</p>
+        <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+          <span class="badge badge-green">✅ Durability without full sync cost</span>
+          <span class="badge badge-yellow">💡 If sync follower dies, async promoted to sync</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text2);">MySQL, PostgreSQL with Patroni, and most cloud RDS setups use this pattern.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- WAL DIAGRAM -->
+  <section id="diagram">
+    <h2 class="section-title"><span class="num">3</span> Leader-Follower with WAL Streaming</h2>
+    <div class="svg-wrap">
+      <svg width="960" height="500" viewBox="0 0 960 500" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#6366f1"/>
+          </marker>
+          <marker id="arr-g" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#10b981"/>
+          </marker>
+          <marker id="arr-y" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#f59e0b"/>
+          </marker>
+          <marker id="arr-r" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#ef4444"/>
+          </marker>
+        </defs>
+
+        <rect x="0" y="0" width="960" height="500" rx="14" fill="#1a1f2e"/>
+
+        <!-- SECTION: Leader-Follower WAL (top half) -->
+        <text x="480" y="28" text-anchor="middle" fill="#818cf8" font-size="13" font-weight="700">LEADER-FOLLOWER REPLICATION WITH WAL STREAMING</text>
+
+        <!-- Client -->
+        <rect x="30" y="50" width="100" height="55" rx="10" fill="#242938" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="80" y="74" text-anchor="middle" font-size="18">🖥️</text>
+        <text x="80" y="94" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">Client</text>
+
+        <!-- Write arrow to leader -->
+        <line x1="130" y1="77" x2="200" y2="77" stroke="#6366f1" stroke-width="2" marker-end="url(#arr)"/>
+        <text x="165" y="68" text-anchor="middle" fill="#818cf8" font-size="9">WRITE</text>
+
+        <!-- Leader DB -->
+        <rect x="200" y="42" width="150" height="220" rx="12" fill="rgba(99,102,241,0.1)" stroke="#6366f1" stroke-width="2"/>
+        <text x="275" y="68" text-anchor="middle" fill="#818cf8" font-size="13" font-weight="800">LEADER</text>
+        <!-- Storage layer inside leader -->
+        <rect x="215" y="78" width="120" height="38" rx="6" fill="#242938" stroke="#2d3448"/>
+        <text x="275" y="95" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">💾 Storage</text>
+        <text x="275" y="108" text-anchor="middle" fill="#94a3b8" font-size="9">1. Write to disk</text>
+        <!-- WAL layer -->
+        <rect x="215" y="122" width="120" height="38" rx="6" fill="#242938" stroke="#2d3448"/>
+        <text x="275" y="139" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600">📜 WAL</text>
+        <text x="275" y="152" text-anchor="middle" fill="#94a3b8" font-size="9">Write-Ahead Log</text>
+        <!-- Ack to client -->
+        <rect x="215" y="166" width="120" height="38" rx="6" fill="rgba(16,185,129,0.1)" stroke="#10b981"/>
+        <text x="275" y="183" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600">✅ ACK Client</text>
+        <text x="275" y="196" text-anchor="middle" fill="#94a3b8" font-size="9">3. Confirm write</text>
+        <!-- Stream WAL label -->
+        <rect x="215" y="210" width="120" height="38" rx="6" fill="rgba(6,182,212,0.1)" stroke="#06b6d4"/>
+        <text x="275" y="227" text-anchor="middle" fill="#06b6d4" font-size="10" font-weight="600">📡 Stream WAL</text>
+        <text x="275" y="240" text-anchor="middle" fill="#94a3b8" font-size="9">4. Send to followers</text>
+
+        <!-- Step numbers on left -->
+        <circle cx="200" cy="77" r="10" fill="#6366f1"/>
+        <text x="200" y="81" text-anchor="middle" fill="#fff" font-size="9" font-weight="700">1</text>
+
+        <!-- WAL stream arrows to followers -->
+        <line x1="350" y1="170" x2="460" y2="120" stroke="#06b6d4" stroke-width="2" marker-end="url(#arr-g)" stroke-dasharray="5,3"/>
+        <line x1="350" y1="200" x2="460" y2="220" stroke="#06b6d4" stroke-width="2" marker-end="url(#arr-g)" stroke-dasharray="5,3"/>
+        <line x1="350" y1="215" x2="460" y2="320" stroke="#06b6d4" stroke-width="1.5" marker-end="url(#arr-g)" stroke-dasharray="5,3"/>
+
+        <!-- SYNC FOLLOWER -->
+        <rect x="460" y="60" width="150" height="120" rx="12" fill="rgba(99,102,241,0.1)" stroke="#6366f1" stroke-width="2"/>
+        <text x="535" y="84" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="800">SYNC FOLLOWER</text>
+        <text x="535" y="100" text-anchor="middle" fill="#94a3b8" font-size="9">(one — durability)</text>
+        <rect x="475" y="108" width="120" height="32" rx="6" fill="#242938" stroke="#2d3448"/>
+        <text x="535" y="122" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">💾 Apply WAL</text>
+        <text x="535" y="135" text-anchor="middle" fill="#94a3b8" font-size="9">Waits: ACK → Leader</text>
+        <!-- ACK back arrow -->
+        <line x1="460" y1="155" x2="350" y2="185" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)" stroke-dasharray="3,3"/>
+        <text x="406" y="162" fill="#10b981" font-size="9">ACK ✓</text>
+
+        <!-- ASYNC FOLLOWER 1 -->
+        <rect x="460" y="195" width="150" height="90" rx="12" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-width="1.5"/>
+        <text x="535" y="218" text-anchor="middle" fill="#10b981" font-size="11" font-weight="800">ASYNC FOLLOWER</text>
+        <text x="535" y="234" text-anchor="middle" fill="#94a3b8" font-size="9">(rest — speed)</text>
+        <rect x="475" y="241" width="120" height="28" rx="6" fill="#242938" stroke="#2d3448"/>
+        <text x="535" y="259" text-anchor="middle" fill="#94a3b8" font-size="9">Applies in background</text>
+
+        <!-- ASYNC FOLLOWER 2 -->
+        <rect x="460" y="300" width="150" height="90" rx="12" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-width="1.5"/>
+        <text x="535" y="323" text-anchor="middle" fill="#10b981" font-size="11" font-weight="800">ASYNC FOLLOWER</text>
+        <text x="535" y="339" text-anchor="middle" fill="#94a3b8" font-size="9">(geo replica)</text>
+        <rect x="475" y="346" width="120" height="28" rx="6" fill="#242938" stroke="#2d3448"/>
+        <text x="535" y="364" text-anchor="middle" fill="#94a3b8" font-size="9">Serves local reads</text>
+
+        <!-- Read routing from client -->
+        <line x1="130" y1="87" x2="460" y2="228" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4,4" marker-end="url(#arr-g)"/>
+        <text x="280" y="180" fill="#10b981" font-size="9">READS (80%)</text>
+
+        <!-- SPLIT BRAIN section -->
+        <line x1="20" y1="415" x2="940" y2="415" stroke="#2d3448" stroke-width="1" stroke-dasharray="4,4"/>
+        <text x="480" y="438" text-anchor="middle" fill="#ef4444" font-size="13" font-weight="700">SPLIT BRAIN — THE NIGHTMARE SCENARIO</text>
+
+        <!-- Old leader (left) -->
+        <rect x="30" y="450" width="160" height="40" rx="8" fill="rgba(239,68,68,0.1)" stroke="#ef4444" stroke-width="2"/>
+        <text x="110" y="468" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700">Old Leader (zombie)</text>
+        <text x="110" y="483" text-anchor="middle" fill="#94a3b8" font-size="9">thinks it's still leader!</text>
+
+        <!-- Network broken -->
+        <text x="260" y="474" text-anchor="middle" fill="#ef4444" font-size="18">⚡</text>
+        <text x="260" y="490" text-anchor="middle" fill="#ef4444" font-size="9">network broken</text>
+
+        <!-- New leader (right) -->
+        <rect x="330" y="450" width="160" height="40" rx="8" fill="rgba(16,185,129,0.1)" stroke="#10b981" stroke-width="2"/>
+        <text x="410" y="468" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700">New Leader (elected)</text>
+        <text x="410" y="483" text-anchor="middle" fill="#94a3b8" font-size="9">followers replicating here</text>
+
+        <!-- FENCING solution -->
+        <rect x="560" y="445" width="200" height="50" rx="8" fill="rgba(99,102,241,0.12)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="660" y="465" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700">Fix: FENCING (STONITH)</text>
+        <text x="660" y="481" text-anchor="middle" fill="#94a3b8" font-size="9">Kill old leader's process or revoke network access</text>
+
+        <!-- STONITH label -->
+        <rect x="775" y="445" width="170" height="50" rx="8" fill="rgba(239,68,68,0.1)" stroke="#ef4444" stroke-width="1"/>
+        <text x="860" y="462" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="700">STONITH</text>
+        <text x="860" y="476" text-anchor="middle" fill="#94a3b8" font-size="9">"Shoot The Other Node</text>
+        <text x="860" y="489" text-anchor="middle" fill="#94a3b8" font-size="9">In The Head"</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- REPLICATION LAG -->
+  <section id="lag">
+    <h2 class="section-title"><span class="num">4</span> Replication Lag &amp; the Read-Your-Own-Writes Bug</h2>
+    <div class="card-grid">
+      <div class="card">
+        <h3>⏱️ Replication Lag</h3>
+        <p style="margin-bottom:0.75rem;">Delay between a write hitting the leader and appearing on a replica.</p>
+        <ul>
+          <li><strong>Normal:</strong> milliseconds</li>
+          <li><strong>Under load:</strong> seconds or even minutes</li>
+          <li><strong>Alert threshold:</strong> consistently &gt;1 second</li>
+        </ul>
+        <div style="margin-top:0.75rem; padding:0.75rem; background:var(--bg3); border-radius:8px; font-size:0.85rem;">
+          <code>SELECT now() - pg_last_xact_replay_timestamp()</code>
+          <br><span style="color:var(--text2); font-size:0.8rem;">→ Check replication lag in PostgreSQL</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--red);">🐛 The Read-Your-Own-Writes Bug</h3>
+        <p style="margin-bottom:0.75rem;">Classic distributed bug scenario:</p>
+        <ol style="padding-left:1.2rem; font-size:0.85rem; color:var(--text2);">
+          <li>User updates their profile photo ✅</li>
+          <li>Page refreshes → reads from replica</li>
+          <li>Replica hasn't caught up yet</li>
+          <li>User sees old photo → thinks update failed</li>
+          <li>User updates again → duplicate write</li>
+        </ol>
+        <div class="warn" style="margin-top:0.75rem;">
+          <div class="warn-label">Fix</div>
+          <p style="font-size:0.85rem;">Route a user's own reads to the <strong>leader</strong> for a few seconds after they make a write. Sticky sessions or a "written at" timestamp in the user's session.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAILOVER -->
+  <section id="failover">
+    <h2 class="section-title"><span class="num">5</span> Failover — When the Leader Dies</h2>
+    <div class="failover-steps">
+      <div class="failover-step">
+        <div class="step-n">1</div>
+        <div><strong>Detect failure</strong> — followers detect missed heartbeats after a timeout (usually 30s–2min)</div>
+      </div>
+      <div class="failover-step">
+        <div class="step-n">2</div>
+        <div><strong>Election</strong> — the follower with the most up-to-date data (highest WAL position) becomes the new leader</div>
+      </div>
+      <div class="failover-step">
+        <div class="step-n">3</div>
+        <div><strong>Reconfigure</strong> — other followers start replicating from the new leader instead</div>
+      </div>
+      <div class="failover-step">
+        <div class="step-n">4</div>
+        <div><strong>DNS / connection pool updated</strong> — traffic redirected to new leader's address</div>
+      </div>
+      <div class="failover-step">
+        <div class="step-n">5</div>
+        <div><strong>App reconnects</strong> — applications reconnect through updated connection pool (PgBouncer absorbs the reconnection storm)</div>
+      </div>
+    </div>
+    <div class="table-wrap" style="margin-top:1.5rem;">
+      <table>
+        <thead>
+          <tr><th>Setup</th><th>Failover Time</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>AWS RDS Multi-AZ</strong></td>
+            <td><span class="badge badge-yellow">30–120 seconds</span></td>
+            <td>Managed automatic failover. DNS switch takes most of the time.</td>
+          </tr>
+          <tr>
+            <td><strong>Patroni (well-configured)</strong></td>
+            <td><span class="badge badge-green">&lt;10 seconds</span></td>
+            <td>Open-source HA for PostgreSQL. Uses etcd/ZooKeeper for leader election.</td>
+          </tr>
+          <tr>
+            <td><strong>Manual failover</strong></td>
+            <td><span class="badge badge-red">Minutes–hours</span></td>
+            <td>Without automation, human response time dominates. Unacceptable for production.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="warn">
+      <div class="warn-label">⚠️ Connection Storms</div>
+      <p>After failover, all app instances try to reconnect simultaneously. A <strong>connection pooler (PgBouncer)</strong> absorbs the storm — the app connects to the pooler, and the pooler reconnects to the new leader just once.</p>
+    </div>
+    <div class="success">
+      <div class="success-label">✅ Action Item</div>
+      <p><strong>Test your failover quarterly in staging with a runbook.</strong> The time to discover your failover is broken is NOT during a production incident at 3 AM.</p>
+    </div>
+  </section>
+
+  <!-- SPLIT BRAIN -->
+  <section id="splitbrain">
+    <h2 class="section-title"><span class="num">6</span> Split Brain &amp; Fencing</h2>
+    <div class="danger">
+      <div class="danger-label">🧠 Split Brain</div>
+      <p>The old leader comes back from a network partition and <em>thinks it's still the leader</em>. Now you have TWO leaders accepting writes. Data diverges. Catastrophic.</p>
+    </div>
+    <div class="card-grid">
+      <div class="card">
+        <h3 style="color:var(--accent2);">🔒 Fix: FENCING</h3>
+        <p>When a new leader is elected, <strong>revoke the old leader's ability to write</strong> before promoting the new one:</p>
+        <ul style="margin-top:0.5rem;">
+          <li>Kill the old leader's database process</li>
+          <li>Revoke network access (firewall rule)</li>
+          <li>Use a fencing token — old leader's writes get rejected</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--red);">💀 STONITH</h3>
+        <p><strong>"Shoot The Other Node In The Head"</strong> — the charmingly named approach where you physically power off the old leader via IPMI/DRAC before assuming the new one is safe to write.</p>
+        <p style="margin-top:0.5rem; font-size:0.85rem; color:var(--text2);">Brutal but effective. Used in high-stakes database clusters where correctness is paramount.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- TOPOLOGIES -->
+  <section id="topologies">
+    <h2 class="section-title"><span class="num">7</span> Replication Topologies</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Topology</th>
+            <th>How It Works</th>
+            <th>Pros</th>
+            <th>Cons</th>
+            <th>Use When</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Single Leader Multi-Follower</strong></td>
+            <td>One leader accepts writes, N followers serve reads</td>
+            <td>Simple, well-understood, standard RDS setup</td>
+            <td>Leader is write bottleneck, failover complexity</td>
+            <td>Read-heavy apps. The default choice.</td>
+          </tr>
+          <tr>
+            <td><strong>Multi-Leader</strong></td>
+            <td>Multiple leaders in different regions, each accept writes</td>
+            <td>Low-latency writes from any region</td>
+            <td>Complex conflict resolution, write-write conflicts</td>
+            <td>Multi-region write-heavy apps</td>
+          </tr>
+          <tr>
+            <td><strong>Leaderless / Dynamo-style</strong></td>
+            <td>Any node accepts reads/writes. Quorum-based consistency.</td>
+            <td>No failover needed, tunable consistency</td>
+            <td>Conflict resolution, more complex reads (W+R&gt;N)</td>
+            <td>High availability, can't have downtime (Cassandra, DynamoDB)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="takeaway" style="margin-top:1.5rem;">
+      <div class="takeaway-label">🎯 Practical Decision Guide</div>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:0.75rem; margin-top:0.5rem;">
+        <div style="font-size:0.88rem;"><strong style="color:var(--accent2);">Reads slow?</strong><br>Add read replicas</div>
+        <div style="font-size:0.88rem;"><strong style="color:var(--green);">Zero data loss?</strong><br>Use synchronous replication</div>
+        <div style="font-size:0.88rem;"><strong style="color:var(--cyan);">Fast writes?</strong><br>Use async replication</div>
+        <div style="font-size:0.88rem;"><strong style="color:var(--yellow);">Multi-region writes?</strong><br>Multi-leader topology</div>
+        <div style="font-size:0.88rem;"><strong style="color:var(--red);">Can't have downtime?</strong><br>Leaderless (Cassandra/DynamoDB)</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <h2 class="section-title"><span class="num">8</span> Quick Reference</h2>
+    <div class="cheatsheet">
+      <div class="cs-title">📋 Replication — Cheat Sheet</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>What it solves</strong>
+          Hardware failure, read scaling, geographic perf, zero-downtime maintenance
+        </div>
+        <div class="cs-item">
+          <strong>WAL flow</strong>
+          Client → Leader writes to storage → Leader streams WAL → Followers apply changes
+        </div>
+        <div class="cs-item">
+          <strong>Synchronous</strong>
+          Leader waits for follower ACK. Strong consistency. Slower writes. Zero data loss.
+        </div>
+        <div class="cs-item">
+          <strong>Asynchronous</strong>
+          Leader confirms immediately. Fast writes. Possible data loss if leader dies.
+        </div>
+        <div class="cs-item">
+          <strong>Semi-sync (production)</strong>
+          1 sync follower (durability) + N async (speed). Best of both worlds.
+        </div>
+        <div class="cs-item">
+          <strong>Replication lag</strong>
+          Normal = ms. Alert at &gt;1s consistently. Monitor it always.
+        </div>
+        <div class="cs-item">
+          <strong>Read-your-own-writes</strong>
+          Route user's own reads to leader for a few seconds after a write.
+        </div>
+        <div class="cs-item">
+          <strong>Failover time</strong>
+          AWS RDS: 30-120s. Patroni: &lt;10s. Manual: minutes.
+        </div>
+        <div class="cs-item">
+          <strong>Split brain fix</strong>
+          FENCING: kill old leader's process or revoke network. STONITH.
+        </div>
+        <div class="cs-item">
+          <strong>Connection storms</strong>
+          PgBouncer pooler absorbs reconnection storm after failover.
+        </div>
+        <div class="cs-item">
+          <strong>Test failover quarterly</strong>
+          Staging + runbook. 3 AM incident is not the time to discover it's broken.
+        </div>
+        <div class="cs-item">
+          <strong>Leaderless (Cassandra)</strong>
+          Any node reads/writes. Tunable consistency. Can't have downtime use case.
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const btn = document.getElementById('themeBtn');
+    if (html.getAttribute('data-theme') === 'dark') {
+      html.setAttribute('data-theme', 'light');
+      btn.textContent = '🌙 Dark';
+    } else {
+      html.setAttribute('data-theme', 'dark');
+      btn.textContent = '☀ Light';
+    }
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

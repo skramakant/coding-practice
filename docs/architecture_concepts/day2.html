@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 2 — CDN | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --bg2: #f8fafc; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #0f172a; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(255,255,255,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 600px; }
+  .hero-meta { margin-top: 1rem; font-size: 0.8rem; color: var(--text2); }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  .big-stat { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+  .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; text-align: center; }
+  .stat-num { font-size: 2.2rem; font-weight: 800; color: var(--accent); line-height: 1; }
+  .stat-label { font-size: 0.8rem; color: var(--text2); margin-top: 0.4rem; }
+  .hit-ratio-bar { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin: 1rem 0; }
+  .ratio-title { font-size: 0.9rem; font-weight: 600; margin-bottom: 1rem; color: var(--text2); }
+  .ratio-item { margin-bottom: 1rem; }
+  .ratio-label { display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.3rem; }
+  .ratio-bar-bg { height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+  .ratio-bar-fill { height: 100%; border-radius: 4px; }
+  @media (max-width: 640px) { nav { padding: 0 1rem; gap: 1rem; } .page { padding: 72px 1rem 3rem; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">Day 2 · CDN</span>
+  <div class="nav-links">
+    <a href="#overview">Overview</a>
+    <a href="#math">The Math</a>
+    <a href="#topology">Topology</a>
+    <a href="#pull-push">Pull vs Push</a>
+    <a href="#invalidation">Invalidation</a>
+    <a href="#edge">Edge Computing</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀ Light</button>
+</nav>
+
+<div class="page">
+
+  <header class="hero">
+    <div class="hero-tag">25-Day Scaling & Architecture · Day 2 of 25</div>
+    <h1>Content <span>Delivery Networks</span></h1>
+    <p class="hero-sub">A CDN is a network of servers in cities worldwide. The real magic is protection from origin overload — not just faster speeds for end users.</p>
+    <p class="hero-meta">Source: 25-Day Scaling & Architecture Series</p>
+  </header>
+
+  <!-- OVERVIEW -->
+  <section id="overview">
+    <h2 class="section-title"><span class="num">1</span> What a CDN Actually Is</h2>
+    <div class="card">
+      <p style="font-size:1.05rem; margin-bottom:1rem;">A CDN is a geographically distributed network of servers (called Points of Presence or PoPs) placed in cities worldwide. When a user requests content, DNS/GeoDNS automatically routes them to the <em>nearest</em> PoP.</p>
+      <p style="color:var(--text2); font-size:0.9rem;">Most teams think of CDN as "making things faster." That's true but secondary. The primary value is absorbing massive traffic volume so your origin servers don't have to.</p>
+    </div>
+    <div class="takeaway">
+      <div class="takeaway-label">⚡ The Real Magic</div>
+      <p>CDN's primary value is <strong>protection</strong>, not speed. When 92% of requests are served from edge caches, your origin only sees 8% of actual traffic — a massive buffer against traffic spikes.</p>
+    </div>
+  </section>
+
+  <!-- THE MATH -->
+  <section id="math">
+    <h2 class="section-title"><span class="num">2</span> The Math That Matters</h2>
+    <div class="big-stat">
+      <div class="stat-card">
+        <div class="stat-num">10k</div>
+        <div class="stat-label">Total requests/second</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">92%</div>
+        <div class="stat-label">CDN cache hit ratio</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">800</div>
+        <div class="stat-label">Requests/sec to origin</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">12.5×</div>
+        <div class="stat-label">Traffic reduction to backend</div>
+      </div>
+    </div>
+
+    <!-- Cache hit ratio gauge -->
+    <div class="hit-ratio-bar">
+      <div class="ratio-title">Cache Hit Ratio — What It Means</div>
+      <div class="ratio-item">
+        <div class="ratio-label">
+          <span style="color:var(--red)">Below 80% — Expensive Proxy</span>
+          <span style="color:var(--red)">≤80%</span>
+        </div>
+        <div class="ratio-bar-bg"><div class="ratio-bar-fill" style="width:80%; background:var(--red);"></div></div>
+        <p style="font-size:0.78rem; color:var(--text2); margin-top:0.3rem;">You're paying for CDN bandwidth but origin still gets hammered. Find cacheable content.</p>
+      </div>
+      <div class="ratio-item">
+        <div class="ratio-label">
+          <span style="color:var(--yellow)">Solid — Getting value</span>
+          <span style="color:var(--yellow)">85-90%</span>
+        </div>
+        <div class="ratio-bar-bg"><div class="ratio-bar-fill" style="width:90%; background:var(--yellow);"></div></div>
+        <p style="font-size:0.78rem; color:var(--text2); margin-top:0.3rem;">Good performance. Origin sees 10-15% of traffic. Continue optimizing.</p>
+      </div>
+      <div class="ratio-item">
+        <div class="ratio-label">
+          <span style="color:var(--green)">Excellent — Origin is basically retired</span>
+          <span style="color:var(--green)">95%+</span>
+        </div>
+        <div class="ratio-bar-bg"><div class="ratio-bar-fill" style="width:95%; background:var(--green);"></div></div>
+        <p style="font-size:0.78rem; color:var(--text2); margin-top:0.3rem;">Exceptional. Origin handles only 5% of traffic. This is where you want to be for high-traffic content.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CDN TOPOLOGY SVG -->
+  <section id="topology">
+    <h2 class="section-title"><span class="num">3</span> CDN Topology</h2>
+
+    <div class="svg-wrap">
+      <svg width="720" height="360" viewBox="0 0 720 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Origin Server (center-right) -->
+        <rect x="580" y="140" width="120" height="70" rx="10" fill="#1a1f2e" stroke="#6366f1" stroke-width="2"/>
+        <text x="640" y="168" text-anchor="middle" font-size="11" font-weight="700" fill="#818cf8">ORIGIN</text>
+        <text x="640" y="183" text-anchor="middle" font-size="10" fill="#94a3b8">SERVER</text>
+        <text x="640" y="198" text-anchor="middle" font-size="9" fill="#64748b">your datacenter</text>
+
+        <!-- PoP Nodes -->
+        <!-- PoP 1 - North America -->
+        <rect x="50" y="60" width="100" height="52" rx="8" fill="#1a1f2e" stroke="#10b981" stroke-width="1.5"/>
+        <text x="100" y="83" text-anchor="middle" font-size="10" font-weight="600" fill="#10b981">PoP: NYC</text>
+        <text x="100" y="97" text-anchor="middle" font-size="9" fill="#64748b">North America</text>
+        <circle cx="100" cy="108" r="3" fill="#10b981"/>
+
+        <!-- PoP 2 - Europe -->
+        <rect x="200" y="40" width="100" height="52" rx="8" fill="#1a1f2e" stroke="#10b981" stroke-width="1.5"/>
+        <text x="250" y="63" text-anchor="middle" font-size="10" font-weight="600" fill="#10b981">PoP: LON</text>
+        <text x="250" y="77" text-anchor="middle" font-size="9" fill="#64748b">Europe</text>
+        <circle cx="250" cy="88" r="3" fill="#10b981"/>
+
+        <!-- PoP 3 - Asia -->
+        <rect x="350" y="60" width="100" height="52" rx="8" fill="#1a1f2e" stroke="#10b981" stroke-width="1.5"/>
+        <text x="400" y="83" text-anchor="middle" font-size="10" font-weight="600" fill="#10b981">PoP: SIN</text>
+        <text x="400" y="97" text-anchor="middle" font-size="9" fill="#64748b">Asia Pacific</text>
+        <circle cx="400" cy="108" r="3" fill="#10b981"/>
+
+        <!-- PoP 4 - South America -->
+        <rect x="50" y="240" width="100" height="52" rx="8" fill="#1a1f2e" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="100" y="263" text-anchor="middle" font-size="10" font-weight="600" fill="#f59e0b">PoP: GRU</text>
+        <text x="100" y="277" text-anchor="middle" font-size="9" fill="#64748b">South America</text>
+        <circle cx="100" cy="288" r="3" fill="#f59e0b"/>
+
+        <!-- PoP 5 - Middle East -->
+        <rect x="350" y="240" width="100" height="52" rx="8" fill="#1a1f2e" stroke="#10b981" stroke-width="1.5"/>
+        <text x="400" y="263" text-anchor="middle" font-size="10" font-weight="600" fill="#10b981">PoP: DXB</text>
+        <text x="400" y="277" text-anchor="middle" font-size="9" fill="#64748b">Middle East</text>
+        <circle cx="400" cy="288" r="3" fill="#10b981"/>
+
+        <!-- Cache HIT paths (PoP to user arrow, no origin) -->
+        <!-- Users -->
+        <circle cx="30" cy="100" r="10" fill="#6366f1" opacity="0.2" stroke="#6366f1" stroke-width="1"/>
+        <text x="30" y="104" text-anchor="middle" font-size="9" fill="#818cf8">U</text>
+        <circle cx="170" cy="55" r="10" fill="#6366f1" opacity="0.2" stroke="#6366f1" stroke-width="1"/>
+        <text x="170" y="59" text-anchor="middle" font-size="9" fill="#818cf8">U</text>
+        <circle cx="480" cy="75" r="10" fill="#6366f1" opacity="0.2" stroke="#6366f1" stroke-width="1"/>
+        <text x="480" y="79" text-anchor="middle" font-size="9" fill="#818cf8">U</text>
+
+        <!-- User to nearest PoP -->
+        <path d="M40 100 L50 86" stroke="#10b981" stroke-width="1.5" opacity="0.7"/>
+        <path d="M180 60 L200 66" stroke="#10b981" stroke-width="1.5" opacity="0.7"/>
+        <path d="M480 80 L450 86" stroke="#10b981" stroke-width="1.5" opacity="0.7"/>
+
+        <!-- PoP to origin (cache miss - dashed) -->
+        <path d="M150 86 L580 170" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.5"/>
+        <path d="M300 66 L580 165" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.5"/>
+        <path d="M450 86 L580 163" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.4"/>
+
+        <!-- Origin to far PoPs (fetch) -->
+        <path d="M580 200 L150 266" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.3"/>
+
+        <!-- Labels -->
+        <rect x="240" y="145" width="90" height="24" rx="5" fill="#10b981" opacity="0.15"/>
+        <text x="285" y="161" text-anchor="middle" font-size="10" fill="#10b981">Cache HIT</text>
+
+        <rect x="340" y="130" width="95" height="24" rx="5" fill="#6366f1" opacity="0.15"/>
+        <text x="387" y="146" text-anchor="middle" font-size="10" fill="#818cf8">Cache MISS → origin</text>
+
+        <!-- DNS label -->
+        <text x="360" y="330" text-anchor="middle" font-size="11" fill="#64748b">GeoDNS routes users to nearest PoP automatically</text>
+
+        <!-- Legend -->
+        <line x1="50" y1="340" x2="80" y2="340" stroke="#10b981" stroke-width="2"/>
+        <text x="90" y="344" font-size="10" fill="#10b981">Cache Hit (fast path)</text>
+        <line x1="230" y1="340" x2="260" y2="340" stroke="#6366f1" stroke-width="2" stroke-dasharray="5,3"/>
+        <text x="270" y="344" font-size="10" fill="#818cf8">Cache Miss (origin fetch)</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- PULL vs PUSH -->
+  <section id="pull-push">
+    <h2 class="section-title"><span class="num">4</span> Pull-Based vs Push-Based CDN</h2>
+    <div class="card-grid">
+      <div class="card">
+        <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.75rem;">
+          <span style="font-size:1.4rem;">⬇️</span>
+          <h3 style="font-size:1rem; font-weight:700; color:var(--green);">Pull-Based</h3>
+          <span class="badge badge-green">95% of teams</span>
+        </div>
+        <p style="font-size:0.88rem; color:var(--text2); margin-bottom:0.75rem;">Edge nodes fetch content from your origin on the <strong>first cache miss</strong>. Subsequent requests are served from cache until TTL expires.</p>
+        <ul style="font-size:0.85rem; color:var(--text); margin-left:1.2rem; line-height:2;">
+          <li>Zero pre-warming required</li>
+          <li>Works automatically from day one</li>
+          <li>First visitor after TTL expiry gets miss</li>
+          <li>Best for: regular web content, APIs, images</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.75rem;">
+          <span style="font-size:1.4rem;">⬆️</span>
+          <h3 style="font-size:1rem; font-weight:700; color:var(--yellow);">Push-Based</h3>
+          <span class="badge badge-yellow">Special events</span>
+        </div>
+        <p style="font-size:0.88rem; color:var(--text2); margin-bottom:0.75rem;">You <strong>pre-upload content</strong> to all edge nodes before requests arrive. Content is already warm when users hit the CDN.</p>
+        <ul style="font-size:0.85rem; color:var(--text); margin-left:1.2rem; line-height:2;">
+          <li>Zero first-request misses</li>
+          <li>Must manage content lifecycle manually</li>
+          <li>Storage costs at all PoPs</li>
+          <li>Best for: game launches, live event assets, known spikes</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- CACHE INVALIDATION -->
+  <section id="invalidation">
+    <h2 class="section-title"><span class="num">5</span> Cache Invalidation Strategies</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Strategy</th>
+            <th>How It Works</th>
+            <th>Risk</th>
+            <th>Recommendation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>TTL-Based</strong></td>
+            <td>Content expires after a set time (e.g., 60 seconds)</td>
+            <td><span class="badge badge-yellow">Accepts staleness</span></td>
+            <td>Use for most content. Simple and reliable.</td>
+          </tr>
+          <tr>
+            <td><strong>Purge API</strong></td>
+            <td>Manually invalidate cached content on write</td>
+            <td><span class="badge badge-red">Thundering herd risk</span></td>
+            <td>Use with staggered TTL as safety net. Not as primary.</td>
+          </tr>
+          <tr>
+            <td><strong>stale-while-revalidate</strong></td>
+            <td>Serve stale content while fetching fresh in background</td>
+            <td><span class="badge badge-green">Minimal</span></td>
+            <td><strong>Best choice.</strong> Users get instant response always.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" style="margin-top:1rem; background:var(--bg3);">
+      <h3 style="font-size:0.95rem; font-weight:700; color:var(--accent2); margin-bottom:0.75rem;">stale-while-revalidate in Practice</h3>
+      <div style="background:var(--bg2); border-radius:8px; padding:1rem; font-family:monospace; font-size:0.85rem; color:var(--green); border:1px solid var(--border);">
+        Cache-Control: max-age=60, stale-while-revalidate=30
+      </div>
+      <p style="font-size:0.85rem; color:var(--text2); margin-top:0.75rem;">
+        Fresh for 60s → serve immediately.<br>
+        60-90s → serve stale <em>but</em> fetch fresh copy in background.<br>
+        After 90s → serve stale until fresh copy is ready (no user-visible wait).
+      </p>
+    </div>
+
+    <div class="card" style="margin-top:1rem;">
+      <h3 style="font-size:0.95rem; font-weight:700; color:var(--red); margin-bottom:0.75rem;">⚠️ Thundering Herd Problem</h3>
+      <p style="font-size:0.88rem; color:var(--text2);">When you purge a popular URL, <strong>thousands of requests simultaneously hit your origin</strong> before the cache is repopulated. Mitigate with:</p>
+      <ul style="font-size:0.85rem; color:var(--text); margin-left:1.2rem; line-height:2; margin-top:0.5rem;">
+        <li>Request coalescing (most CDNs do this automatically)</li>
+        <li>Keeping a short TTL as backup safety net</li>
+        <li>Staggering invalidations across edge nodes</li>
+      </ul>
+    </div>
+
+    <!-- What to cache -->
+    <div class="card" style="margin-top:1rem;">
+      <h3 style="font-size:0.95rem; font-weight:700; color:var(--accent2); margin-bottom:0.75rem;">📦 What to Cache on CDN</h3>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:0.6rem;">
+        <div style="background:var(--bg3); border-radius:8px; padding:0.75rem; font-size:0.83rem;">📡 API responses (with appropriate TTL)</div>
+        <div style="background:var(--bg3); border-radius:8px; padding:0.75rem; font-size:0.83rem;">🏠 HTML fragments</div>
+        <div style="background:var(--bg3); border-radius:8px; padding:0.75rem; font-size:0.83rem;">📊 GraphQL query results</div>
+        <div style="background:var(--bg3); border-radius:8px; padding:0.75rem; font-size:0.83rem;">👥 Per-cohort personalized data</div>
+        <div style="background:var(--bg3); border-radius:8px; padding:0.75rem; font-size:0.83rem;">🔒 DNS + TLS certificates</div>
+        <div style="background:var(--bg3); border-radius:8px; padding:0.75rem; font-size:0.83rem;">🖼️ Images &amp; static assets</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EDGE COMPUTING -->
+  <section id="edge">
+    <h2 class="section-title"><span class="num">6</span> Edge Computing</h2>
+    <div class="card">
+      <p style="font-size:0.95rem; margin-bottom:1rem;">Modern CDNs let you run <strong>compute at the edge</strong> — code that executes at the PoP closest to the user, before the request ever reaches your origin.</p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1rem; margin-top:1rem;">
+        <div style="background:var(--bg3); border-radius:10px; padding:1rem;">
+          <div style="font-weight:700; color:var(--accent2); margin-bottom:0.4rem; font-size:0.9rem;">Cloudflare Workers</div>
+          <div style="font-size:0.83rem; color:var(--text2);">V8 isolates, runs JS/WASM. ~1ms startup. 275+ PoPs.</div>
+        </div>
+        <div style="background:var(--bg3); border-radius:10px; padding:1rem;">
+          <div style="font-weight:700; color:var(--accent2); margin-bottom:0.4rem; font-size:0.9rem;">Lambda@Edge</div>
+          <div style="font-size:0.83rem; color:var(--text2);">AWS. Run Node.js/Python at CloudFront edge. Higher latency than Workers.</div>
+        </div>
+        <div style="background:var(--bg3); border-radius:10px; padding:1rem;">
+          <div style="font-weight:700; color:var(--accent2); margin-bottom:0.4rem; font-size:0.9rem;">Fastly Compute</div>
+          <div style="font-size:0.83rem; color:var(--text2);">WASM-based. Strongly typed, very fast cold starts.</div>
+        </div>
+      </div>
+      <div style="margin-top:1rem;">
+        <p style="font-size:0.88rem; font-weight:600; color:var(--text); margin-bottom:0.5rem;">Common edge use cases:</p>
+        <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+          <span class="badge badge-cyan">Authentication / JWT validation</span>
+          <span class="badge badge-cyan">A/B testing</span>
+          <span class="badge badge-cyan">Geo-personalization</span>
+          <span class="badge badge-cyan">Request rewriting</span>
+          <span class="badge badge-cyan">Bot detection</span>
+          <span class="badge badge-cyan">Image optimization</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <h2 class="section-title"><span class="num">7</span> CDN Design Framework + Quick Reference</h2>
+
+    <div class="card" style="margin-bottom:1.5rem;">
+      <h3 style="font-size:0.95rem; font-weight:700; color:var(--accent2); margin-bottom:1rem;">📐 CDN Design Framework</h3>
+      <div style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center;">
+        <div style="background:var(--bg3); border-radius:8px; padding:0.75rem 1rem; font-size:0.85rem; text-align:center;">1️⃣<br><strong>Measure</strong><br>read-to-write ratio</div>
+        <div style="font-size:1.2rem; color:var(--accent2);">→</div>
+        <div style="background:var(--bg3); border-radius:8px; padding:0.75rem 1rem; font-size:0.85rem; text-align:center;">2️⃣<br><strong>Classify</strong><br>content by change freq</div>
+        <div style="font-size:1.2rem; color:var(--accent2);">→</div>
+        <div style="background:var(--bg3); border-radius:8px; padding:0.75rem 1rem; font-size:0.85rem; text-align:center;">3️⃣<br><strong>Monitor</strong><br>cache hit ratio weekly</div>
+        <div style="font-size:1.2rem; color:var(--accent2);">→</div>
+        <div style="background:var(--bg3); border-radius:8px; padding:0.75rem 1rem; font-size:0.85rem; text-align:center;">4️⃣<br><strong>Move logic</strong><br>to edge gradually</div>
+      </div>
+    </div>
+
+    <div class="cheatsheet">
+      <div class="cs-title">📋 CDN Quick Reference</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>Pull-based CDN</strong>
+          95% of teams. Edge fetches on first miss. Zero setup.
+        </div>
+        <div class="cs-item">
+          <strong>Push-based CDN</strong>
+          Game launches, live events. Pre-warm edge nodes.
+        </div>
+        <div class="cs-item">
+          <strong>Cache hit &lt;80%</strong>
+          You have an expensive proxy. Find cacheable content.
+        </div>
+        <div class="cs-item">
+          <strong>Cache hit 85-90%</strong>
+          Solid. Continue optimizing, origin still active.
+        </div>
+        <div class="cs-item">
+          <strong>Cache hit 95%+</strong>
+          Excellent. Origin is basically retired from web traffic.
+        </div>
+        <div class="cs-item">
+          <strong>Invalidation choice</strong>
+          stale-while-revalidate is best. TTL second. Purge = thundering herd risk.
+        </div>
+        <div class="cs-item">
+          <strong>Edge compute for</strong>
+          Auth, A/B testing, geo-personalization. Runs before origin.
+        </div>
+        <div class="cs-item">
+          <strong>GeoDNS</strong>
+          Automatically routes users to nearest PoP. No app code needed.
+        </div>
+        <div class="cs-item">
+          <strong>Monitor weekly</strong>
+          Cache hit ratio, origin error rate, PoP latency by region.
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  function toggleTheme() {
+    const root = document.documentElement;
+    const btn = document.querySelector('.theme-btn');
+    if (root.dataset.theme === 'dark') { root.dataset.theme = 'light'; btn.textContent = '🌙 Dark'; }
+    else { root.dataset.theme = 'dark'; btn.textContent = '☀ Light'; }
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

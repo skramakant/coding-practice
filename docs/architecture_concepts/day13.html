@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 13 — Monolith vs Microservices | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #1e293b; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(248,250,252,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 640px; }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .card p, .card ul { font-size: 0.9rem; color: var(--text2); }
+  .card ul { padding-left: 1.2rem; }
+  .card ul li { margin-bottom: 0.35rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .danger-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 0.4rem; }
+  .success { background: var(--green-bg); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .success-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-purple { background: var(--accent-bg); color: var(--accent2); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  .anecdote { background: var(--bg2); border-left: 4px solid var(--green); border-radius: 0 12px 12px 0; padding: 1.25rem 1.5rem; margin: 0 0 1.5rem; }
+  code { background: var(--bg3); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: var(--green); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .quote-block { background: var(--bg3); border-radius: 12px; padding: 1.5rem 2rem; margin: 1.5rem 0; text-align: center; font-size: 1.05rem; font-style: italic; color: var(--text2); border-left: 4px solid var(--accent); }
+  .quote-block strong { color: var(--accent); }
+  @media (max-width: 640px) { nav { padding: 0 1rem; gap: 1rem; } .page { padding: 72px 1rem 3rem; } .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<nav>
+  <span class="nav-brand">Day 13</span>
+  <div class="nav-links">
+    <a href="#proof">Real Proof</a>
+    <a href="#why-monolith">Why Monolith</a>
+    <a href="#third-option">The Third Option</a>
+    <a href="#extract-when">When to Extract</a>
+    <a href="#not-a-reason">Bad Reasons</a>
+    <a href="#framework">Framework</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀ Light</button>
+</nav>
+
+<div class="page">
+  <div class="hero">
+    <div class="hero-tag">Day 13 · 25-Day Scaling Series</div>
+    <h1>Monolith <span>vs</span> Microservices</h1>
+    <p class="hero-sub">The missing third option: a well-structured monolith beats a poorly-structured microservices architecture every single time.</p>
+  </div>
+
+  <!-- PROOF -->
+  <section id="proof">
+    <div class="section-title"><div class="num">1</div> The Proof is in Production</div>
+    <div class="card-grid">
+      <div class="anecdote" style="margin:0;">
+        <strong style="color:var(--green);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;">Shopify</strong>
+        <p style="margin-top:0.4rem;">Processes Black Friday on a <strong>Rails monolith</strong>. <strong>$11.5 billion</strong> in sales over one weekend. They call it the "majestic monolith." Still one of the most scalable ecommerce platforms on earth.</p>
+      </div>
+      <div class="anecdote" style="margin:0;">
+        <strong style="color:var(--green);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;">Amazon Prime Video</strong>
+        <p style="margin-top:0.4rem;">Moved video quality monitoring from microservices to monolith. <strong>90% cost reduction</strong>. Distributed system overhead was greater than the coordination overhead it was supposed to solve.</p>
+      </div>
+      <div class="anecdote" style="margin:0;">
+        <strong style="color:var(--green);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;">Segment</strong>
+        <p style="margin-top:0.4rem;">Rebuilt their monolith after <strong>140+ microservices</strong>. Drew wrong boundaries in year 1. Refactoring 140 services was so painful they started over. Boundaries must be earned, not invented.</p>
+      </div>
+      <div class="anecdote" style="margin:0;">
+        <strong style="color:var(--green);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;">Stack Overflow</strong>
+        <p style="margin-top:0.4rem;"><strong>1.3 billion pageviews/month</strong> from just 9 web servers, running a <strong>single .NET monolith</strong> with modular structure. More traffic than most microservices shops ever reach.</p>
+      </div>
+    </div>
+    <p style="color:var(--text2);font-size:0.9rem;margin-top:1rem;">Also: GitHub, Basecamp — all monoliths at massive scale. The narrative that microservices = scale is simply wrong.</p>
+  </section>
+
+  <!-- WHY MONOLITH FIRST -->
+  <section id="why-monolith">
+    <div class="section-title"><div class="num">2</div> 3 Reasons to Start with a Monolith</div>
+    <div class="card-grid">
+      <div class="card" style="border-color:var(--yellow);">
+        <h3 style="color:var(--yellow);">① You Don't Know Your Boundaries</h3>
+        <p>Moving a boundary in a monolith = refactor (days). Moving across services = re-splitting DBs, redoing APIs, multi-quarter migration.</p>
+        <p style="margin-top:0.5rem;"><strong>Segment's lesson:</strong> They drew wrong boundaries in year 1. Refactoring 140 services was so painful they rebuilt the monolith from scratch.</p>
+      </div>
+      <div class="card" style="border-color:var(--yellow);">
+        <h3 style="color:var(--yellow);">② Bottleneck is Shipping Speed</h3>
+        <p>At 10k DAU, Postgres + single app server handles the load comfortably. Microservices slow down shipping <strong>2–3x</strong> while you build deploy pipelines, debug service mesh issues, and pay the operational tax.</p>
+      </div>
+      <div class="card" style="border-color:var(--yellow);">
+        <h3 style="color:var(--yellow);">③ Operational Tax Compounds</h3>
+        <p>5 engineers maintaining 20 services = 4 services per engineer. Each engineer becomes a part-time platform team. Feature velocity craters. <strong>The math doesn't work below 50–80 engineers.</strong></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- THE THIRD OPTION -->
+  <section id="third-option">
+    <div class="section-title"><div class="num">3</div> The Missing Third Option: Modular Monolith</div>
+
+    <div class="takeaway">
+      <div class="takeaway-label">The Majestic Monolith</div>
+      <p>One deployable unit, one repo, one CI/CD, one DB server — but with <strong>strong internal module boundaries</strong>, clear team ownership per module, and independent testability per module. Gets you 80% of microservices benefits without the painful 20%.</p>
+    </div>
+
+    <!-- Modular Monolith Architecture SVG -->
+    <div class="svg-wrap">
+      <svg width="860" height="360" viewBox="0 0 860 360" xmlns="http://www.w3.org/2000/svg">
+        <!-- Outer container: single deployable -->
+        <rect x="20" y="50" width="820" height="280" rx="16" fill="rgba(99,102,241,0.04)" stroke="#6366f1" stroke-width="2.5"/>
+        <rect x="20" y="50" width="820" height="44" rx="16" fill="rgba(99,102,241,0.14)"/>
+        <rect x="20" y="80" width="820" height="14" fill="rgba(99,102,241,0.14)"/>
+        <text x="430" y="78" text-anchor="middle" fill="#818cf8" font-size="14" font-weight="700" font-family="system-ui">📦 Single Deployable Unit · One Repo · One CI/CD · One DB Server</text>
+
+        <!-- Module: Auth -->
+        <rect x="44" y="116" width="168" height="120" rx="10" fill="rgba(16,185,129,0.08)" stroke="#10b981" stroke-width="1.5"/>
+        <text x="128" y="140" text-anchor="middle" fill="#10b981" font-size="12" font-weight="700" font-family="system-ui">🔐 Auth Module</text>
+        <text x="128" y="158" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Team A owns</text>
+        <rect x="60" y="168" width="136" height="18" rx="4" fill="rgba(16,185,129,0.15)"/>
+        <text x="128" y="181" text-anchor="middle" fill="#10b981" font-size="9.5" font-family="system-ui">Defined interfaces only</text>
+        <rect x="60" y="191" width="136" height="18" rx="4" fill="rgba(16,185,129,0.10)"/>
+        <text x="128" y="204" text-anchor="middle" fill="#94a3b8" font-size="9.5" font-family="system-ui">Independent tests</text>
+        <text x="128" y="228" text-anchor="middle" fill="#64748b" font-size="9" font-family="system-ui">auth.service.ts</text>
+
+        <!-- Module: Payments -->
+        <rect x="228" y="116" width="168" height="120" rx="10" fill="rgba(245,158,11,0.08)" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="312" y="140" text-anchor="middle" fill="#f59e0b" font-size="12" font-weight="700" font-family="system-ui">💳 Payments Module</text>
+        <text x="312" y="158" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Team B owns</text>
+        <rect x="244" y="168" width="136" height="18" rx="4" fill="rgba(245,158,11,0.15)"/>
+        <text x="312" y="181" text-anchor="middle" fill="#f59e0b" font-size="9.5" font-family="system-ui">Defined interfaces only</text>
+        <rect x="244" y="191" width="136" height="18" rx="4" fill="rgba(245,158,11,0.10)"/>
+        <text x="312" y="204" text-anchor="middle" fill="#94a3b8" font-size="9.5" font-family="system-ui">Independent tests</text>
+        <text x="312" y="228" text-anchor="middle" fill="#64748b" font-size="9" font-family="system-ui">payments.service.ts</text>
+
+        <!-- Module: Search -->
+        <rect x="412" y="116" width="168" height="120" rx="10" fill="rgba(6,182,212,0.08)" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="496" y="140" text-anchor="middle" fill="#06b6d4" font-size="12" font-weight="700" font-family="system-ui">🔍 Search Module</text>
+        <text x="496" y="158" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Team C owns</text>
+        <rect x="428" y="168" width="136" height="18" rx="4" fill="rgba(6,182,212,0.15)"/>
+        <text x="496" y="181" text-anchor="middle" fill="#06b6d4" font-size="9.5" font-family="system-ui">Defined interfaces only</text>
+        <rect x="428" y="191" width="136" height="18" rx="4" fill="rgba(6,182,212,0.10)"/>
+        <text x="496" y="204" text-anchor="middle" fill="#94a3b8" font-size="9.5" font-family="system-ui">Independent tests</text>
+        <text x="496" y="228" text-anchor="middle" fill="#64748b" font-size="9" font-family="system-ui">search.service.ts</text>
+
+        <!-- Module: Notifications -->
+        <rect x="596" y="116" width="220" height="120" rx="10" fill="rgba(99,102,241,0.08)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="706" y="140" text-anchor="middle" fill="#818cf8" font-size="12" font-weight="700" font-family="system-ui">🔔 Notifications Module</text>
+        <text x="706" y="158" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Team D owns</text>
+        <rect x="612" y="168" width="184" height="18" rx="4" fill="rgba(99,102,241,0.15)"/>
+        <text x="706" y="181" text-anchor="middle" fill="#818cf8" font-size="9.5" font-family="system-ui">Defined interfaces only</text>
+        <rect x="612" y="191" width="184" height="18" rx="4" fill="rgba(99,102,241,0.10)"/>
+        <text x="706" y="204" text-anchor="middle" fill="#94a3b8" font-size="9.5" font-family="system-ui">Independent tests</text>
+        <text x="706" y="228" text-anchor="middle" fill="#64748b" font-size="9" font-family="system-ui">notifications.service.ts</text>
+
+        <!-- Shared DB at bottom -->
+        <rect x="280" y="260" width="300" height="52" rx="10" fill="rgba(99,102,241,0.08)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="430" y="283" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700" font-family="system-ui">🗄 Single Database Server</text>
+        <text x="430" y="300" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Logical separation per module · Schema boundaries enforced</text>
+
+        <!-- Lines from modules to DB -->
+        <line x1="128" y1="236" x2="310" y2="260" stroke="#2d3448" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="312" y1="236" x2="370" y2="260" stroke="#2d3448" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="496" y1="236" x2="470" y2="260" stroke="#2d3448" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="706" y1="236" x2="550" y2="260" stroke="#2d3448" stroke-width="1" stroke-dasharray="3,2"/>
+      </svg>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <h3 style="color:var(--green);">What You Get (80%)</h3>
+        <ul>
+          <li>Team autonomy per module</li>
+          <li>Clean boundaries and ownership</li>
+          <li>Independent testability</li>
+          <li>Can refactor without network boundaries</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--red);">What You Avoid (the painful 20%)</h3>
+        <ul>
+          <li>Network failures between services</li>
+          <li>Distributed transactions / saga patterns</li>
+          <li>Debugging across 12 service boundaries</li>
+          <li>15 deploy pipelines, 15 dashboards</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHEN TO EXTRACT -->
+  <section id="extract-when">
+    <div class="section-title"><div class="num">4</div> When to Extract a Service (Real Pain)</div>
+    <p style="color:var(--text2);font-size:0.92rem;margin-bottom:1.25rem;">Wait until you feel the real pain. Extracting prematurely is the most common and costly mistake.</p>
+    <div class="card-grid">
+      <div class="card" style="border-color:var(--green);">
+        <div style="font-size:1.5rem;margin-bottom:0.5rem;">📈</div>
+        <h3>① Independent Scaling Needed</h3>
+        <p>Search needs 80 instances, admin needs 2. If infrastructure savings are <strong>30%+</strong> = worth the operational cost. Not just "search is slower" — <em>meaningful</em> infrastructure cost difference.</p>
+      </div>
+      <div class="card" style="border-color:var(--green);">
+        <div style="font-size:1.5rem;margin-bottom:0.5rem;">🛡</div>
+        <h3>② Different Reliability Requirements</h3>
+        <p>Payments needs 99.99% uptime. Reporting can be down 4 hours. Coupling them means a reporting bug takes down payments. <em>Separation is about blast radius, not convenience.</em></p>
+      </div>
+      <div class="card" style="border-color:var(--green);">
+        <div style="font-size:1.5rem;margin-bottom:0.5rem;">🚀</div>
+        <h3>③ Deploy Cadence Killing Velocity</h3>
+        <p>"Can we deploy today?" Slack thread with 15 people, 3 teams, coordination calls every Tuesday. When deploy coordination becomes a recurring meeting, it's time to extract.</p>
+      </div>
+      <div class="card" style="border-color:var(--green);">
+        <div style="font-size:1.5rem;margin-bottom:0.5rem;">🔧</div>
+        <h3>④ Genuinely Different Tech Stack</h3>
+        <p>ML inference requires Python + GPUs. Your main app is Rails. This is a real technical constraint — the language boundary forces a service boundary. Extract only when the stack truly can't co-exist.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- NOT A REASON -->
+  <section id="not-a-reason">
+    <div class="section-title"><div class="num">5</div> Bad Reasons to Microservices</div>
+    <div class="danger">
+      <div class="danger-label">❌ NOT a Reason to Extract</div>
+      <ul style="padding-left:1.2rem;font-size:0.9rem;color:var(--text2);">
+        <li style="margin-bottom:0.5rem;"><strong style="color:var(--text);">"We have 25 engineers"</strong> — headcount alone is not a signal</li>
+        <li style="margin-bottom:0.5rem;"><strong style="color:var(--text);">"It looks more serious / professional"</strong> — architectural LARP</li>
+        <li style="margin-bottom:0.5rem;"><strong style="color:var(--text);">"The CTO read a microservices book"</strong> — architecture by resume</li>
+        <li style="margin-bottom:0.5rem;"><strong style="color:var(--text);">"Stripe does it / Netflix does it"</strong> — they have 10,000 engineers and 20 years of domain knowledge</li>
+      </ul>
+    </div>
+    <p style="color:var(--text2);font-size:0.92rem;">Extract ONE service, live with it for 3–6 months, pay the operational tax, learn what production microservices feel like. Then decide. Most teams stop at 3–5 services.</p>
+  </section>
+
+  <!-- DECISION FRAMEWORK -->
+  <section id="framework">
+    <div class="section-title"><div class="num">6</div> Honest Decision Framework</div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Situation</th><th>Recommendation</th><th>Why</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Early stage / 1 team</td>
+            <td><span class="badge badge-green">Monolith</span></td>
+            <td>Boundaries unknown, shipping speed matters most</td>
+          </tr>
+          <tr>
+            <td>Growing, 2-4 teams, deployment conflicts</td>
+            <td><span class="badge badge-purple">Modular Monolith</span></td>
+            <td>Get 80% benefits without distributed systems pain</td>
+          </tr>
+          <tr>
+            <td>Specific component needs different scale/reliability/stack</td>
+            <td><span class="badge badge-yellow">Extract 1 Service</span></td>
+            <td>Feel the tax, validate the tradeoff before more extractions</td>
+          </tr>
+          <tr>
+            <td>Multiple teams, deploy coordination hell, proven boundaries</td>
+            <td><span class="badge badge-cyan">Microservices</span></td>
+            <td>Real organizational pain with known, stable domain boundaries</td>
+          </tr>
+          <tr>
+            <td>Microservices with wrong boundaries / too many services</td>
+            <td><span class="badge badge-red">Merge Back</span></td>
+            <td>Segment did it. Amazon did it. It's okay to learn and reverse.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="takeaway" style="margin-top:1.5rem;">
+      <div class="takeaway-label">The Framework</div>
+      <p>Default to modular monolith → Extract when you feel real pain → Build prerequisites first → Accept you might be wrong and need to merge back</p>
+    </div>
+
+    <div class="quote-block">
+      <strong>"A well-structured monolith beats a poorly-structured microservices architecture every single time."</strong>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <div class="section-title"><div class="num">7</div> Quick Reference</div>
+    <div class="cheatsheet">
+      <div class="cs-title">📋 Monolith vs Microservices Cheat Sheet</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>Shopify</strong>
+          $11.5B Black Friday on Rails monolith. "Majestic monolith." Still works.
+        </div>
+        <div class="cs-item">
+          <strong>Segment</strong>
+          140+ microservices → rebuilt monolith. Wrong boundaries are very expensive to fix.
+        </div>
+        <div class="cs-item">
+          <strong>Stack Overflow</strong>
+          1.3B pageviews/month from 9 web servers. Single .NET monolith. Modular structure.
+        </div>
+        <div class="cs-item">
+          <strong>Modular Monolith</strong>
+          One deploy unit. Strong internal boundaries. Team ownership per module. 80% of microservices benefits.
+        </div>
+        <div class="cs-item">
+          <strong>Why Monolith First</strong>
+          Unknown boundaries. Shipping bottleneck. Operational tax doesn't work below 50-80 engineers.
+        </div>
+        <div class="cs-item">
+          <strong>Extract When (Real Pain)</strong>
+          Independent scaling saves 30%+. Different reliability SLAs. Deploy cadence hell. Genuinely different tech.
+        </div>
+        <div class="cs-item">
+          <strong>Don't Extract When</strong>
+          "25 engineers". "Looks serious". "CTO read microservices book". "Stripe does it."
+        </div>
+        <div class="cs-item">
+          <strong>Strategy</strong>
+          Extract 1 service. Live with it 3-6 months. Pay the tax. Then decide on more.
+        </div>
+        <div class="cs-item">
+          <strong>The Boundary Problem</strong>
+          Moving in monolith = days. Moving across services = multi-quarter migration. Earn your boundaries first.
+        </div>
+        <div class="cs-item">
+          <strong>Acceptance</strong>
+          Accept you might be wrong and need to merge back. That's not failure — that's learning.
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const btn = document.querySelector('.theme-btn');
+    if (html.getAttribute('data-theme') === 'dark') {
+      html.setAttribute('data-theme', 'light');
+      btn.textContent = '🌙 Dark';
+    } else {
+      html.setAttribute('data-theme', 'dark');
+      btn.textContent = '☀ Light';
+    }
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

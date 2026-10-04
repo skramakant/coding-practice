@@ -87,6 +87,33 @@ body{
 .dot-graph  {background:#f472b6}
 .dot-sliding{background:#60a5fa}
 .dot-stack  {background:#fbbf24}
+.dot-sysdesign{background:#06b6d4}
+
+/* ── Featured section ── */
+.featured-section{display:flex;flex-direction:column;gap:10px}
+.featured-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:20px 22px;text-decoration:none;color:var(--text);
+  display:flex;align-items:center;gap:18px;
+  transition:border-color .2s,transform .15s,box-shadow .2s;
+  position:relative;overflow:hidden;
+}
+.featured-card::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,#06b6d415,transparent 60%);
+  opacity:0;transition:opacity .2s;
+}
+.featured-card:hover{border-color:#06b6d4;transform:translateY(-2px);box-shadow:0 8px 24px #0006}
+.featured-card:hover::before{opacity:1}
+.featured-icon{font-size:2rem;flex-shrink:0}
+.featured-body{flex:1;min-width:0}
+.featured-title{font-size:1rem;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.featured-badge{font-size:.65rem;padding:2px 8px;border-radius:10px;background:#06b6d422;color:#06b6d4;border:1px solid #06b6d444;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.featured-desc{font-size:.8rem;color:var(--muted);margin-top:4px;line-height:1.55}
+.featured-meta{font-size:.72rem;color:var(--muted);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap}
+.featured-meta span{display:flex;align-items:center;gap:4px}
+.featured-arrow{color:var(--muted);font-size:1.2rem;flex-shrink:0;transition:color .2s,transform .15s}
+.featured-card:hover .featured-arrow{color:#06b6d4;transform:translateX(4px)}
 
 /* ── Empty state ── */
 .empty{text-align:center;padding:40px;color:var(--muted);font-size:.9rem;display:none}
@@ -112,6 +139,7 @@ body{
     <div class="stats">
       <div class="stat"><div class="stat-num" id="total-count">1</div><div class="stat-label">Visualizations</div></div>
       <div class="stat"><div class="stat-num" id="cat-count">1</div><div class="stat-label">Categories</div></div>
+      <div class="stat"><div class="stat-num">23</div><div class="stat-label">System Design Days</div></div>
     </div>
   </div>
 
@@ -121,7 +149,33 @@ body{
     <input type="text" id="search-input" placeholder="Search by name, topic, or tag…" oninput="filterCards()"/>
   </div>
 
-  <!-- Categories -->
+  <!-- Featured: System Design Series -->
+  <div class="featured-section">
+    <div class="category-header">
+      <span class="category-title" style="color:#06b6d4">System Design</span>
+      <div class="category-line"></div>
+    </div>
+    <a class="featured-card" href="architecture_concepts/index.html">
+      <div class="featured-icon">🏗️</div>
+      <div class="featured-body">
+        <div class="featured-title">
+          Scaling &amp; Architecture Series
+          <span class="featured-badge">25 Days</span>
+        </div>
+        <div class="featured-desc">
+          A structured 25-day deep dive into system design — scaling strategies, distributed systems, databases, caching, message queues, and real-world architecture patterns.
+        </div>
+        <div class="featured-meta">
+          <span>📅 Day 1 → Day 23+</span>
+          <span>🗂️ 23 topics covered</span>
+          <span>🔍 Interactive diagrams</span>
+        </div>
+      </div>
+      <div class="featured-arrow">→</div>
+    </a>
+  </div>
+
+  <!-- Algorithm Visualizations -->
   <div id="categories-root"></div>
 
   <div class="empty" id="empty-state">No visualizations match your search.</div>

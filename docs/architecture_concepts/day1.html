@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 1 — Load Balancing | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117;
+    --bg2: #1a1f2e;
+    --bg3: #242938;
+    --border: #2d3448;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --accent: #6366f1;
+    --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12);
+    --green: #10b981;
+    --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444;
+    --red-bg: rgba(239,68,68,0.12);
+    --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12);
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92);
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff;
+    --bg2: #f8fafc;
+    --bg3: #f1f5f9;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text2: #64748b;
+    --accent: #4f46e5;
+    --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08);
+    --green: #059669;
+    --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626;
+    --red-bg: rgba(220,38,38,0.08);
+    --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08);
+    --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(255,255,255,0.92);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    transition: background 0.3s, color 0.3s;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: var(--nav-bg);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    height: 56px;
+    display: flex; align-items: center; gap: 2rem;
+  }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a {
+    color: var(--text2); text-decoration: none; font-size: 0.8rem;
+    padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn {
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text); cursor: pointer; border-radius: 8px;
+    padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* LAYOUT */
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+
+  /* HEADER */
+  .hero {
+    padding: 3rem 0 2rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 3rem;
+  }
+  .hero-tag {
+    display: inline-block; background: var(--accent-bg); color: var(--accent);
+    font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;
+    padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem;
+  }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 600px; }
+  .hero-meta { margin-top: 1rem; font-size: 0.8rem; color: var(--text2); }
+
+  /* SECTIONS */
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title {
+    font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem;
+    display: flex; align-items: center; gap: 0.6rem;
+  }
+  .section-title .num {
+    width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent);
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; font-weight: 700; flex-shrink: 0;
+  }
+
+  /* CARDS */
+  .card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.5rem;
+    box-shadow: var(--shadow); transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+
+  /* ALGO CARDS */
+  .algo-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.25rem; transition: all 0.2s;
+  }
+  .algo-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .algo-name { font-weight: 700; font-size: 1rem; margin-bottom: 0.4rem; color: var(--accent2); }
+  .algo-desc { font-size: 0.88rem; color: var(--text2); }
+
+  /* TAKEAWAY */
+  .takeaway {
+    background: var(--accent-bg); border: 1px solid var(--accent);
+    border-radius: 12px; padding: 1.25rem 1.5rem;
+    margin: 1.5rem 0;
+  }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .takeaway p { font-size: 0.95rem; color: var(--text); }
+
+  /* WARN */
+  .warn {
+    background: var(--yellow-bg); border: 1px solid var(--yellow);
+    border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0;
+  }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); }
+  tr:hover td { background: var(--bg3); }
+
+  /* BADGE */
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+
+  /* STEPS */
+  .steps { display: flex; flex-direction: column; gap: 0; }
+  .step { display: flex; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--border); }
+  .step:last-child { border-bottom: none; }
+  .step-num {
+    width: 28px; height: 28px; background: var(--accent); color: white;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; font-weight: 700; flex-shrink: 0; margin-top: 2px;
+  }
+  .step-content strong { display: block; font-size: 0.95rem; margin-bottom: 0.2rem; }
+  .step-content p { font-size: 0.85rem; color: var(--text2); }
+
+  /* CHEAT SHEET */
+  .cheatsheet {
+    background: var(--bg2); border: 2px solid var(--accent);
+    border-radius: 16px; padding: 2rem; margin-top: 1rem;
+  }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+
+  /* SVG CONTAINER */
+  .svg-wrap {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.5rem; overflow-x: auto;
+    margin: 1.5rem 0;
+  }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+
+  /* PROS CONS */
+  .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .pros { background: var(--green-bg); border: 1px solid var(--green); border-radius: 10px; padding: 1rem; }
+  .cons { background: var(--red-bg); border: 1px solid var(--red); border-radius: 10px; padding: 1rem; }
+  .pros h4 { color: var(--green); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.6rem; }
+  .cons h4 { color: var(--red); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.6rem; }
+  .pros li, .cons li { font-size: 0.85rem; color: var(--text); margin-left: 1rem; margin-bottom: 0.3rem; }
+
+  @media (max-width: 640px) {
+    .pros-cons { grid-template-columns: 1fr; }
+    nav { padding: 0 1rem; gap: 1rem; }
+    .page { padding: 72px 1rem 3rem; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">Day 1 · Load Balancing</span>
+  <div class="nav-links">
+    <a href="#overview">Overview</a>
+    <a href="#algorithms">Algorithms</a>
+    <a href="#layers">L4 vs L7</a>
+    <a href="#health">Health Checks</a>
+    <a href="#production">Production</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀ Light</button>
+</nav>
+
+<div class="page">
+
+  <header class="hero">
+    <div class="hero-tag">25-Day Scaling & Architecture · Day 1 of 25</div>
+    <h1>Load <span>Balancing</span></h1>
+    <p class="hero-sub">Distributing traffic across servers — and why the balancer itself can become your biggest bottleneck.</p>
+    <p class="hero-meta">Source: 25-Day Scaling & Architecture Series</p>
+  </header>
+
+  <!-- OVERVIEW -->
+  <section id="overview">
+    <h2 class="section-title"><span class="num">1</span> The Core Concept</h2>
+    <div class="card">
+      <p style="font-size:1.05rem; margin-bottom:1rem;">A load balancer sits in front of your servers and distributes incoming requests. <strong>The critical insight:</strong> it operates on network/transport data — it doesn't actually know what's happening <em>inside</em> your servers.</p>
+      <p style="color:var(--text2); font-size:0.9rem;">It can't see CPU usage, memory pressure, or application-level errors unless you explicitly configure health checks. This is the gap between what a load balancer appears to do and what it actually sees.</p>
+    </div>
+    <div class="takeaway">
+      <div class="takeaway-label">⚡ Key Insight</div>
+      <p>A load balancer can itself become a bottleneck. It's a single point through which all traffic flows — plan for its capacity, redundancy, and monitoring just like any other critical component.</p>
+    </div>
+
+    <!-- SVG: Load balancer distributing traffic -->
+    <div class="svg-wrap">
+      <svg width="680" height="280" viewBox="0 0 680 280" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Users -->
+        <g>
+          <circle cx="60" cy="80" r="18" fill="#6366f1" opacity="0.2" stroke="#6366f1" stroke-width="1.5"/>
+          <text x="60" y="85" text-anchor="middle" font-size="14" fill="#818cf8">👤</text>
+          <text x="60" y="110" text-anchor="middle" font-size="10" fill="#94a3b8">User 1</text>
+        </g>
+        <g>
+          <circle cx="60" cy="160" r="18" fill="#6366f1" opacity="0.2" stroke="#6366f1" stroke-width="1.5"/>
+          <text x="60" y="165" text-anchor="middle" font-size="14" fill="#818cf8">👤</text>
+          <text x="60" y="190" text-anchor="middle" font-size="10" fill="#94a3b8">User 2</text>
+        </g>
+        <g>
+          <circle cx="60" cy="240" r="18" fill="#6366f1" opacity="0.2" stroke="#6366f1" stroke-width="1.5"/>
+          <text x="60" y="245" text-anchor="middle" font-size="14" fill="#818cf8">👤</text>
+          <text x="60" y="268" text-anchor="middle" font-size="10" fill="#94a3b8">User 3</text>
+        </g>
+        <!-- Arrows to LB -->
+        <path d="M80 80 L200 150" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.6"/>
+        <path d="M80 160 L200 155" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.6"/>
+        <path d="M80 240 L200 165" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.6"/>
+        <!-- Load Balancer -->
+        <rect x="185" y="120" width="100" height="60" rx="10" fill="#6366f1" opacity="0.15" stroke="#6366f1" stroke-width="2"/>
+        <text x="235" y="147" text-anchor="middle" font-size="11" font-weight="700" fill="#818cf8">LOAD</text>
+        <text x="235" y="162" text-anchor="middle" font-size="11" font-weight="700" fill="#818cf8">BALANCER</text>
+        <!-- Arrows to servers -->
+        <path d="M285 140 L420 80" stroke="#10b981" stroke-width="1.5" opacity="0.7"/>
+        <path d="M285 148 L420 148" stroke="#10b981" stroke-width="1.5" opacity="0.7"/>
+        <path d="M285 158 L420 220" stroke="#10b981" stroke-width="1.5" opacity="0.7"/>
+        <!-- Servers -->
+        <g>
+          <rect x="420" y="55" width="90" height="50" rx="8" fill="#1a1f2e" stroke="#2d3448" stroke-width="1.5"/>
+          <text x="465" y="78" text-anchor="middle" font-size="10" fill="#94a3b8">Server 1</text>
+          <circle cx="445" cy="91" r="5" fill="#10b981"/>
+          <text x="458" y="95" font-size="9" fill="#10b981">healthy</text>
+        </g>
+        <g>
+          <rect x="420" y="123" width="90" height="50" rx="8" fill="#1a1f2e" stroke="#2d3448" stroke-width="1.5"/>
+          <text x="465" y="146" text-anchor="middle" font-size="10" fill="#94a3b8">Server 2</text>
+          <circle cx="445" cy="159" r="5" fill="#10b981"/>
+          <text x="458" y="163" font-size="9" fill="#10b981">healthy</text>
+        </g>
+        <g>
+          <rect x="420" y="195" width="90" height="50" rx="8" fill="#1a1f2e" stroke="#ef4444" stroke-width="1.5"/>
+          <text x="465" y="218" text-anchor="middle" font-size="10" fill="#94a3b8">Server 3</text>
+          <circle cx="445" cy="231" r="5" fill="#ef4444"/>
+          <text x="458" y="235" font-size="9" fill="#ef4444">unhealthy</text>
+        </g>
+        <!-- Health check indicators -->
+        <path d="M285 155 L420 245" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,4" opacity="0.4"/>
+        <text x="350" y="245" font-size="9" fill="#ef4444" opacity="0.7">skipped</text>
+        <!-- Label -->
+        <text x="340" y="275" text-anchor="middle" font-size="11" fill="#64748b">Traffic routed only to healthy servers</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ALGORITHMS -->
+  <section id="algorithms">
+    <h2 class="section-title"><span class="num">2</span> 5 Load Balancing Algorithms</h2>
+    <div class="card-grid">
+      <div class="algo-card">
+        <div class="algo-name">🔄 Round-Robin</div>
+        <div class="algo-desc">Requests distributed to each server in sequence. Simple and stateless. Best when servers are identical in capacity.</div>
+      </div>
+      <div class="algo-card">
+        <div class="algo-name">📊 Least Connections</div>
+        <div class="algo-desc">New request goes to the server with fewest active connections. Ideal when request processing times vary significantly.</div>
+      </div>
+      <div class="algo-card">
+        <div class="algo-name">⚖️ Weighted Round-Robin</div>
+        <div class="algo-desc">Like round-robin but higher-capacity servers get more requests proportionally. Use when servers have different hardware specs.</div>
+      </div>
+      <div class="algo-card">
+        <div class="algo-name">🔗 IP Hash</div>
+        <div class="algo-desc">Client IP is hashed to consistently map to the same server. Enables session persistence (sticky sessions) without cookies.</div>
+      </div>
+      <div class="algo-card">
+        <div class="algo-name">⚡ Least Response Time</div>
+        <div class="algo-desc">Combines active connections + response time. Routes to the server that's both least busy AND fastest responding.</div>
+      </div>
+    </div>
+
+    <!-- Algorithm comparison SVG -->
+    <div class="svg-wrap">
+      <svg width="640" height="200" viewBox="0 0 640 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <text x="320" y="22" text-anchor="middle" font-size="12" font-weight="600" fill="#94a3b8">Algorithm Selection Guide</text>
+        <!-- Round Robin -->
+        <rect x="20" y="38" width="112" height="60" rx="8" fill="#6366f1" opacity="0.12" stroke="#6366f1" stroke-width="1"/>
+        <text x="76" y="62" text-anchor="middle" font-size="10" font-weight="700" fill="#818cf8">Round-Robin</text>
+        <text x="76" y="78" text-anchor="middle" font-size="9" fill="#94a3b8">Equal servers</text>
+        <text x="76" y="90" text-anchor="middle" font-size="9" fill="#94a3b8">Simple setup</text>
+        <!-- Least Conn -->
+        <rect x="148" y="38" width="112" height="60" rx="8" fill="#10b981" opacity="0.12" stroke="#10b981" stroke-width="1"/>
+        <text x="204" y="62" text-anchor="middle" font-size="10" font-weight="700" fill="#10b981">Least Conn</text>
+        <text x="204" y="78" text-anchor="middle" font-size="9" fill="#94a3b8">Varying req</text>
+        <text x="204" y="90" text-anchor="middle" font-size="9" fill="#94a3b8">durations</text>
+        <!-- Weighted RR -->
+        <rect x="276" y="38" width="112" height="60" rx="8" fill="#f59e0b" opacity="0.12" stroke="#f59e0b" stroke-width="1"/>
+        <text x="332" y="62" text-anchor="middle" font-size="10" font-weight="700" fill="#f59e0b">Weighted RR</text>
+        <text x="332" y="78" text-anchor="middle" font-size="9" fill="#94a3b8">Mixed server</text>
+        <text x="332" y="90" text-anchor="middle" font-size="9" fill="#94a3b8">capacities</text>
+        <!-- IP Hash -->
+        <rect x="404" y="38" width="112" height="60" rx="8" fill="#8b5cf6" opacity="0.12" stroke="#8b5cf6" stroke-width="1"/>
+        <text x="460" y="62" text-anchor="middle" font-size="10" font-weight="700" fill="#a78bfa">IP Hash</text>
+        <text x="460" y="78" text-anchor="middle" font-size="9" fill="#94a3b8">Session</text>
+        <text x="460" y="90" text-anchor="middle" font-size="9" fill="#94a3b8">persistence</text>
+        <!-- Least RT -->
+        <rect x="532" y="38" width="100" height="60" rx="8" fill="#ef4444" opacity="0.12" stroke="#ef4444" stroke-width="1"/>
+        <text x="582" y="62" text-anchor="middle" font-size="10" font-weight="700" fill="#f87171">Least RT</text>
+        <text x="582" y="78" text-anchor="middle" font-size="9" fill="#94a3b8">Best overall</text>
+        <text x="582" y="90" text-anchor="middle" font-size="9" fill="#94a3b8">performance</text>
+        <!-- Complexity bar -->
+        <text x="20" y="130" font-size="10" fill="#64748b">Complexity →</text>
+        <rect x="20" y="140" width="612" height="8" rx="4" fill="#2d3448"/>
+        <rect x="20" y="140" width="76" height="8" rx="4" fill="#6366f1" opacity="0.7"/>
+        <rect x="148" y="140" width="76" height="8" rx="4" fill="#10b981" opacity="0.7"/>
+        <rect x="276" y="140" width="76" height="8" rx="4" fill="#f59e0b" opacity="0.7"/>
+        <rect x="404" y="140" width="76" height="8" rx="4" fill="#8b5cf6" opacity="0.7"/>
+        <rect x="532" y="140" width="80" height="8" rx="4" fill="#ef4444" opacity="0.9"/>
+        <text x="20" y="165" font-size="9" fill="#6366f1">Low</text>
+        <text x="532" y="165" font-size="9" fill="#ef4444">High</text>
+        <text x="276" y="185" text-anchor="middle" font-size="10" fill="#64748b">More complex = smarter routing decisions</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- LAYERS -->
+  <section id="layers">
+    <h2 class="section-title"><span class="num">3</span> Layer 4 vs Layer 7</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Dimension</th>
+            <th>Layer 4 (Transport)</th>
+            <th>Layer 7 (Application)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Sees</strong></td>
+            <td>IP + TCP/UDP headers only</td>
+            <td>HTTP headers, URL, cookies, body</td>
+          </tr>
+          <tr>
+            <td><strong>Speed</strong></td>
+            <td><span class="badge badge-green">Faster</span> — less processing</td>
+            <td><span class="badge badge-yellow">Slower</span> — full inspection</td>
+          </tr>
+          <tr>
+            <td><strong>Routing logic</strong></td>
+            <td>IP + port only</td>
+            <td>Path, host header, cookie, content type</td>
+          </tr>
+          <tr>
+            <td><strong>SSL termination</strong></td>
+            <td>Pass-through (encrypted)</td>
+            <td>Can terminate + re-encrypt</td>
+          </tr>
+          <tr>
+            <td><strong>Use case</strong></td>
+            <td>High throughput, simple routing</td>
+            <td>Microservices, A/B testing, auth</td>
+          </tr>
+          <tr>
+            <td><strong>Examples</strong></td>
+            <td>AWS NLB, HAProxy (TCP mode)</td>
+            <td>AWS ALB, Nginx, Envoy</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="takeaway">
+      <div class="takeaway-label">💡 Rule of Thumb</div>
+      <p>Use L4 when you need raw throughput. Use L7 when you need routing intelligence — routing by URL path, reading auth headers, rewriting requests, or doing sticky sessions via cookies.</p>
+    </div>
+  </section>
+
+  <!-- HEALTH CHECKS -->
+  <section id="health">
+    <h2 class="section-title"><span class="num">4</span> Health Checks</h2>
+    <div class="card-grid">
+      <div class="card">
+        <h3 style="font-size:1rem; font-weight:700; color:var(--accent2); margin-bottom:0.75rem;">🟢 Active (Polling)</h3>
+        <p style="font-size:0.88rem; color:var(--text2); margin-bottom:0.75rem;">Load balancer proactively sends requests to servers (e.g., HTTP GET /health) on a schedule. If a server fails N checks in a row, it's marked unhealthy.</p>
+        <ul style="font-size:0.85rem; color:var(--text); margin-left:1.2rem; line-height:1.8;">
+          <li>Catches failures immediately</li>
+          <li>Adds small overhead to each server</li>
+          <li>Configurable interval &amp; threshold</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 style="font-size:1rem; font-weight:700; color:var(--accent2); margin-bottom:0.75rem;">🔵 Passive (Traffic Watching)</h3>
+        <p style="font-size:0.88rem; color:var(--text2); margin-bottom:0.75rem;">Load balancer monitors actual traffic responses. If a server returns too many 5xx errors or timeouts, it's marked unhealthy.</p>
+        <ul style="font-size:0.85rem; color:var(--text); margin-left:1.2rem; line-height:1.8;">
+          <li>No synthetic traffic overhead</li>
+          <li>Slower to detect quiet failures</li>
+          <li>Misses servers receiving no traffic</li>
+        </ul>
+      </div>
+    </div>
+    <div class="takeaway">
+      <div class="takeaway-label">✅ Production Recommendation</div>
+      <p>Use <strong>both</strong> in production. Active checks catch dead servers quickly. Passive checks detect degraded-but-alive servers that pass health checks but fail real requests.</p>
+    </div>
+
+    <div class="card" style="margin-top:1rem;">
+      <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem; color:var(--accent2);">🐢 Recovery Policy: Slow-Start</h3>
+      <p style="font-size:0.88rem; color:var(--text2);">When a server comes back online after a failure, don't immediately send it full traffic. Use <strong>slow-start</strong>: gradually ramp up traffic over 30-120 seconds.</p>
+      <p style="font-size:0.88rem; color:var(--text); margin-top:0.5rem;">Without slow-start: server warms up JVM/caches/connections while handling 1/3 of all traffic → cascading failure.</p>
+    </div>
+  </section>
+
+  <!-- PRODUCTION STEPS -->
+  <section id="production">
+    <h2 class="section-title"><span class="num">5</span> Production Checklist</h2>
+    <div class="card">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <strong>Know Your Traffic Profile</strong>
+            <p>Measure peak RPS, request duration distribution, geographic origin. This determines everything else.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <strong>Pick the Right Layer</strong>
+            <p>L4 for raw throughput and simplicity. L7 for routing intelligence, SSL termination, and microservices.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <strong>Configure Health Checks</strong>
+            <p>Set up both active polling AND passive traffic monitoring with appropriate thresholds and intervals.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <strong>Monitor the Balancer Itself</strong>
+            <p>Track connection count, error rate, latency on the LB. It can become the bottleneck — treat it like any critical service.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <strong>Revisit Every 6 Months</strong>
+            <p>Traffic patterns change. Review algorithm choice, capacity, and health check thresholds regularly.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="warn">
+      <div class="warn-label">⚠️ Watch Out</div>
+      <p style="font-size:0.9rem; color:var(--text);">The load balancer itself can become a bottleneck. It is a single point through which ALL traffic flows. Plan for active-active LB pairs, monitor its metrics, and stress-test it separately.</p>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <h2 class="section-title"><span class="num">6</span> Quick Reference</h2>
+    <div class="cheatsheet">
+      <div class="cs-title">📋 Load Balancing Cheat Sheet</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>Equal servers, simple setup</strong>
+          Round-Robin
+        </div>
+        <div class="cs-item">
+          <strong>Variable request durations</strong>
+          Least Connections
+        </div>
+        <div class="cs-item">
+          <strong>Mixed server capacities</strong>
+          Weighted Round-Robin
+        </div>
+        <div class="cs-item">
+          <strong>Session persistence needed</strong>
+          IP Hash
+        </div>
+        <div class="cs-item">
+          <strong>Best overall performance</strong>
+          Least Response Time
+        </div>
+        <div class="cs-item">
+          <strong>High throughput, simple</strong>
+          Layer 4 (L4)
+        </div>
+        <div class="cs-item">
+          <strong>Routing intelligence needed</strong>
+          Layer 7 (L7)
+        </div>
+        <div class="cs-item">
+          <strong>Health checks production</strong>
+          Use BOTH active + passive
+        </div>
+        <div class="cs-item">
+          <strong>Server recovery policy</strong>
+          Slow-start (30-120s ramp)
+        </div>
+        <div class="cs-item">
+          <strong>LB itself getting hot</strong>
+          Active-active LB pair
+        </div>
+        <div class="cs-item">
+          <strong>Review cadence</strong>
+          Every 6 months minimum
+        </div>
+        <div class="cs-item">
+          <strong>Monitor on the LB</strong>
+          Connections, errors, latency
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  function toggleTheme() {
+    const root = document.documentElement;
+    const btn = document.querySelector('.theme-btn');
+    if (root.dataset.theme === 'dark') {
+      root.dataset.theme = 'light';
+      btn.textContent = '🌙 Dark';
+    } else {
+      root.dataset.theme = 'dark';
+      btn.textContent = '☀ Light';
+    }
+  }
+
+  // Scroll reveal
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

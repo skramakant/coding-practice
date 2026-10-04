@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 12 — Microservices | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #1e293b; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(248,250,252,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 640px; }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .card p, .card ul { font-size: 0.9rem; color: var(--text2); }
+  .card ul { padding-left: 1.2rem; }
+  .card ul li { margin-bottom: 0.35rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .danger-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 0.4rem; }
+  .success { background: var(--green-bg); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .success-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-purple { background: var(--accent-bg); color: var(--accent2); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  .anecdote { background: var(--bg2); border-left: 4px solid var(--green); border-radius: 0 12px 12px 0; padding: 1.25rem 1.5rem; margin: 0 0 1.5rem; }
+  code { background: var(--bg3); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: var(--green); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .prereq-item { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem; background: var(--bg3); border-radius: 8px; margin-bottom: 0.5rem; font-size: 0.9rem; }
+  .prereq-icon { font-size: 1.1rem; flex-shrink: 0; }
+  @media (max-width: 640px) { nav { padding: 0 1rem; gap: 1rem; } .page { padding: 72px 1rem 3rem; } .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<nav>
+  <span class="nav-brand">Day 12</span>
+  <div class="nav-links">
+    <a href="#story">The Problem</a>
+    <a href="#org-problem">Org Problem</a>
+    <a href="#rule">The Rule</a>
+    <a href="#costs">Real Costs</a>
+    <a href="#when">When to Use</a>
+    <a href="#practical">Practical Path</a>
+    <a href="#prereqs">Prerequisites</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀ Light</button>
+</nav>
+
+<div class="page">
+  <div class="hero">
+    <div class="hero-tag">Day 12 · 25-Day Scaling Series</div>
+    <h1>Micro<span>services</span></h1>
+    <p class="hero-sub">Microservices solve an organizational problem, not a technical one. Understanding this distinction prevents millions of dollars in wrong architecture decisions.</p>
+  </div>
+
+  <!-- STORY -->
+  <section id="story">
+    <div class="section-title"><div class="num">1</div> The Counter-Narrative</div>
+    <div class="anecdote">
+      <strong style="color:var(--green);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;">Amazon Prime Video · 2023</strong>
+      <p style="margin-top:0.5rem;">Amazon Prime Video moved their video quality monitoring service from microservices back to a monolith. Costs dropped <strong>90%</strong>. Not surprising — the same pattern has appeared at multiple companies. Sometimes the "best practice" architecture isn't the right architecture.</p>
+    </div>
+  </section>
+
+  <!-- ORG PROBLEM -->
+  <section id="org-problem">
+    <div class="section-title"><div class="num">2</div> The Real Problem Microservices Solve</div>
+
+    <div class="takeaway">
+      <div class="takeaway-label">Core Insight</div>
+      <p>Microservices solve an <strong>organizational problem</strong>, not a technical one. The bottleneck microservices address is team coordination and deployment independence — not raw system performance.</p>
+    </div>
+
+    <!-- Monolith vs Microservices Org Chart SVG -->
+    <div class="svg-wrap">
+      <svg width="860" height="320" viewBox="0 0 860 320" xmlns="http://www.w3.org/2000/svg">
+        <!-- LEFT: Monolith org -->
+        <text x="215" y="24" text-anchor="middle" fill="#ef4444" font-size="13" font-weight="700" font-family="system-ui">❌ Monolith with 6 Teams</text>
+        <!-- Single repo box -->
+        <rect x="60" y="38" width="310" height="70" rx="10" fill="rgba(239,68,68,0.08)" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="215" y="60" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700" font-family="system-ui">Single Repository / Codebase</text>
+        <text x="215" y="78" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">All 40 engineers commit here</text>
+        <text x="215" y="94" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Blocking · Broken tests · Deployment hell</text>
+
+        <!-- Teams -->
+        <rect x="60" y="130" width="72" height="36" rx="6" fill="rgba(239,68,68,0.12)" stroke="#ef4444" stroke-width="1"/>
+        <text x="96" y="152" text-anchor="middle" fill="#ef4444" font-size="10" font-family="system-ui">Auth</text>
+        <rect x="140" y="130" width="72" height="36" rx="6" fill="rgba(239,68,68,0.12)" stroke="#ef4444" stroke-width="1"/>
+        <text x="176" y="152" text-anchor="middle" fill="#ef4444" font-size="10" font-family="system-ui">Payments</text>
+        <rect x="220" y="130" width="72" height="36" rx="6" fill="rgba(239,68,68,0.12)" stroke="#ef4444" stroke-width="1"/>
+        <text x="256" y="152" text-anchor="middle" fill="#ef4444" font-size="10" font-family="system-ui">Search</text>
+        <rect x="300" y="130" width="72" height="36" rx="6" fill="rgba(239,68,68,0.12)" stroke="#ef4444" stroke-width="1"/>
+        <text x="336" y="152" text-anchor="middle" fill="#ef4444" font-size="10" font-family="system-ui">Notifs</text>
+
+        <!-- Lines to single repo -->
+        <line x1="96" y1="130" x2="150" y2="108" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="176" y1="130" x2="190" y2="108" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="256" y1="130" x2="230" y2="108" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="336" y1="130" x2="270" y2="108" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,2"/>
+
+        <!-- Problems -->
+        <text x="96" y="188" text-anchor="middle" fill="#64748b" font-size="9.5" font-family="system-ui">Team A</text>
+        <text x="176" y="188" text-anchor="middle" fill="#64748b" font-size="9.5" font-family="system-ui">Team B</text>
+        <text x="256" y="188" text-anchor="middle" fill="#64748b" font-size="9.5" font-family="system-ui">Team C</text>
+        <text x="336" y="188" text-anchor="middle" fill="#64748b" font-size="9.5" font-family="system-ui">Team D</text>
+
+        <rect x="60" y="204" width="310" height="58" rx="8" fill="rgba(239,68,68,0.06)" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,2"/>
+        <text x="215" y="224" text-anchor="middle" fill="#ef4444" font-size="10.5" font-family="system-ui">⚠ Must coordinate all deploys</text>
+        <text x="215" y="240" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Team A's bug blocks Team B's feature</text>
+        <text x="215" y="256" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">One broken test = nobody deploys</text>
+
+        <!-- DIVIDER -->
+        <line x1="430" y1="20" x2="430" y2="300" stroke="#2d3448" stroke-width="1" stroke-dasharray="6,3"/>
+
+        <!-- RIGHT: Microservices org -->
+        <text x="645" y="24" text-anchor="middle" fill="#10b981" font-size="13" font-weight="700" font-family="system-ui">✅ Microservices with 6 Teams</text>
+
+        <!-- Services -->
+        <rect x="450" y="38" width="100" height="60" rx="8" fill="rgba(16,185,129,0.08)" stroke="#10b981" stroke-width="1.5"/>
+        <text x="500" y="62" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700" font-family="system-ui">Auth</text>
+        <text x="500" y="78" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Team A owns</text>
+
+        <rect x="562" y="38" width="100" height="60" rx="8" fill="rgba(99,102,241,0.08)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="612" y="62" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700" font-family="system-ui">Payments</text>
+        <text x="612" y="78" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Team B owns</text>
+
+        <rect x="674" y="38" width="100" height="60" rx="8" fill="rgba(245,158,11,0.08)" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="724" y="62" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700" font-family="system-ui">Search</text>
+        <text x="724" y="78" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Team C owns</text>
+
+        <rect x="786" y="38" width="54" height="60" rx="8" fill="rgba(6,182,212,0.08)" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="813" y="62" text-anchor="middle" fill="#06b6d4" font-size="11" font-weight="700" font-family="system-ui">Notifs</text>
+        <text x="813" y="78" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Team D</text>
+
+        <!-- Individual deploy pipelines -->
+        <text x="500" y="120" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Own repo</text>
+        <text x="500" y="132" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Own pipeline</text>
+        <text x="500" y="144" text-anchor="middle" fill="#10b981" font-size="9" font-weight="600" font-family="system-ui">5x/day</text>
+
+        <text x="612" y="120" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Own repo</text>
+        <text x="612" y="132" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Own pipeline</text>
+        <text x="612" y="144" text-anchor="middle" fill="#818cf8" font-size="9" font-weight="600" font-family="system-ui">1x/week</text>
+
+        <text x="724" y="120" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Own repo</text>
+        <text x="724" y="132" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Own pipeline</text>
+        <text x="724" y="144" text-anchor="middle" fill="#f59e0b" font-size="9" font-weight="600" font-family="system-ui">3x/day</text>
+
+        <rect x="450" y="196" width="390" height="66" rx="8" fill="rgba(16,185,129,0.06)" stroke="#10b981" stroke-width="1"/>
+        <text x="645" y="218" text-anchor="middle" fill="#10b981" font-size="10.5" font-family="system-ui">✓ Each team deploys independently</text>
+        <text x="645" y="234" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Team A deploys 5x/day. Team B once/week.</text>
+        <text x="645" y="250" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Neither blocks the other.</text>
+      </svg>
+    </div>
+
+    <p style="color:var(--text2);font-size:0.92rem;">With 40 engineers and 6 teams all committing to the same codebase: blocking, broken tests, deployment coordination hell. Microservices give each team their own service, repo, deploy pipeline, release schedule.</p>
+  </section>
+
+  <!-- THE RULE -->
+  <section id="rule">
+    <div class="section-title"><div class="num">3</div> The Fundamental Rule</div>
+    <div class="takeaway">
+      <div class="takeaway-label">Conway's Law in Practice</div>
+      <p style="font-size:1.1rem;"><strong>One team, one service.</strong></p>
+      <p style="margin-top:0.5rem;color:var(--text2);">Two teams own one service = wrong boundary drawn. One team owns four services = four modules pretending to be services. Your service boundaries should mirror your team boundaries — this is Conway's Law.</p>
+    </div>
+  </section>
+
+  <!-- REAL COSTS -->
+  <section id="costs">
+    <div class="section-title"><div class="num">4</div> Real Costs Nobody Mentions</div>
+    <div class="warn">
+      <div class="warn-label">⚠ Hidden Tax</div>
+      <p>I've seen teams where <strong>60% of engineering time</strong> went to infrastructure instead of features. Microservices are a multiplier — on both productivity and operational overhead.</p>
+    </div>
+    <div class="card-grid">
+      <div class="card">
+        <h3 style="color:var(--red);">① Network ≠ Function Calls</h3>
+        <p>Function calls: <strong>nanoseconds</strong>, can't fail, no timeout needed.<br>
+        Network calls: <strong>1–10ms</strong>, can fail, can timeout, need retry logic, circuit breakers, fallbacks.<br>
+        Every service boundary you add multiplies this cost.</p>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--red);">② Distributed Transactions</h3>
+        <p>In a monolith: <code>BEGIN; do stuff; COMMIT;</code><br>
+        In microservices: saga pattern with compensating actions across services. If step 3 of 5 fails, you need to undo steps 1 and 2 manually. Extremely hard to get right.</p>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--red);">③ Debugging is Detective Work</h3>
+        <p>Monolith: <code>grep logs</code>.<br>
+        Microservices: distributed tracing (Jaeger, Zipkin) + correlation IDs tracked across 7 different log streams in 7 different systems.</p>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--red);">④ Operational Overhead Multiplies</h3>
+        <p>15 services = 15 deploy pipelines, 15 monitoring dashboards, 15 alert sets, possibly 15 databases. Each service needs SLOs, runbooks, on-call rotation coverage.</p>
+      </div>
+    </div>
+    <div class="table-wrap" style="margin-top:1.5rem;">
+      <table>
+        <thead>
+          <tr><th>Operation</th><th>Monolith</th><th>Microservices</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Deploy</td><td>1 pipeline</td><td>N pipelines (one per service)</td></tr>
+          <tr><td>Debug a bug</td><td>grep + stack trace</td><td>Distributed trace across N services</td></tr>
+          <tr><td>Transaction</td><td>BEGIN / COMMIT</td><td>Saga + compensating actions</td></tr>
+          <tr><td>Service call</td><td>Function call (ns)</td><td>HTTP/gRPC (1–10ms, fallible)</td></tr>
+          <tr><td>Monitoring</td><td>1 dashboard</td><td>N dashboards</td></tr>
+          <tr><td>Local dev</td><td>Start 1 process</td><td>docker-compose with N services</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- WHEN TO USE -->
+  <section id="when">
+    <div class="section-title"><div class="num">5</div> When Microservices Actually Make Sense</div>
+    <div class="two-col">
+      <div class="success">
+        <div class="success-label">✅ Use Microservices When</div>
+        <ul style="padding-left:1.2rem;font-size:0.9rem;color:var(--text2);">
+          <li style="margin-bottom:0.5rem;"><strong style="color:var(--text);">Multiple teams need independent deploys</strong> — this is signal #1</li>
+          <li style="margin-bottom:0.5rem;">Components have genuinely different scaling needs</li>
+          <li style="margin-bottom:0.5rem;">Different tech stacks are genuinely required per component</li>
+          <li style="margin-bottom:0.5rem;">Fault isolation is critical (payments must survive notification outage)</li>
+        </ul>
+      </div>
+      <div class="danger">
+        <div class="danger-label">❌ Don't Use Microservices When</div>
+        <ul style="padding-left:1.2rem;font-size:0.9rem;color:var(--text2);">
+          <li style="margin-bottom:0.5rem;">Single team — Conway's Law says don't</li>
+          <li style="margin-bottom:0.5rem;">Early stage — product boundaries still changing</li>
+          <li style="margin-bottom:0.5rem;">Bottleneck is product velocity, not engineering scale</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRACTICAL PATH -->
+  <section id="practical">
+    <div class="section-title"><div class="num">6</div> Practical Path</div>
+    <div class="card-grid">
+      <div class="card" style="border-color:var(--green);">
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+          <div style="width:28px;height:28px;background:var(--green-bg);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--green);font-weight:700;font-size:0.85rem;flex-shrink:0;">1</div>
+          <h3 style="margin:0;">Well-Structured Monolith</h3>
+        </div>
+        <p>Clean module boundaries, interfaces, logical DB separation. This is what Shopify does at billions in GMV. The foundation must be right before splitting.</p>
+      </div>
+      <div class="card" style="border-color:var(--yellow);">
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+          <div style="width:28px;height:28px;background:var(--yellow-bg);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--yellow);font-weight:700;font-size:0.85rem;flex-shrink:0;">2</div>
+          <h3 style="margin:0;">Extract First Service (Real Pain)</h3>
+        </div>
+        <p>Good first extractions: <strong>auth/identity</strong>, <strong>email/notifications</strong>, <strong>file upload</strong>. These are well-understood, stateless, and high-traffic. Feel the operational tax before committing.</p>
+      </div>
+      <div class="card" style="border-color:var(--accent);">
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+          <div style="width:28px;height:28px;background:var(--accent-bg);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--accent);font-weight:700;font-size:0.85rem;flex-shrink:0;">3</div>
+          <h3 style="margin:0;">Extract More as Team Grows</h3>
+        </div>
+        <p>Let Conway's Law guide you. As you hire more teams, extract services that match new team boundaries. Don't extract in anticipation — extract in response to real pain.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PREREQUISITES -->
+  <section id="prereqs">
+    <div class="section-title"><div class="num">7</div> Prerequisites Before First Extraction</div>
+    <p style="color:var(--text2);font-size:0.92rem;margin-bottom:1.25rem;">These aren't optional. Without them, your first microservice extraction will be painful and fragile. Build them first in the monolith.</p>
+
+    <div class="svg-wrap">
+      <svg width="860" height="200" viewBox="0 0 860 200" xmlns="http://www.w3.org/2000/svg">
+        <!-- Checklist items as visual cards -->
+        <!-- Item 1 -->
+        <rect x="20" y="30" width="155" height="140" rx="10" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-width="1.5"/>
+        <text x="97" y="58" text-anchor="middle" font-size="22" font-family="system-ui">📋</text>
+        <text x="97" y="82" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700" font-family="system-ui">Centralized</text>
+        <text x="97" y="96" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700" font-family="system-ui">Logging</text>
+        <text x="97" y="116" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">+ Correlation IDs</text>
+        <text x="97" y="130" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">across all services</text>
+        <text x="97" y="155" text-anchor="middle" fill="#64748b" font-size="9.5" font-family="system-ui">ELK, Datadog, etc.</text>
+
+        <!-- Item 2 -->
+        <rect x="187" y="30" width="155" height="140" rx="10" fill="rgba(99,102,241,0.07)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="264" y="58" text-anchor="middle" font-size="22" font-family="system-ui">💓</text>
+        <text x="264" y="82" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700" font-family="system-ui">Health Check</text>
+        <text x="264" y="96" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700" font-family="system-ui">Endpoints</text>
+        <text x="264" y="116" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Every service must</text>
+        <text x="264" y="130" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">expose /health</text>
+        <text x="264" y="155" text-anchor="middle" fill="#64748b" font-size="9.5" font-family="system-ui">For load balancers</text>
+
+        <!-- Item 3 -->
+        <rect x="354" y="30" width="155" height="140" rx="10" fill="rgba(6,182,212,0.07)" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="431" y="58" text-anchor="middle" font-size="22" font-family="system-ui">🔀</text>
+        <text x="431" y="82" text-anchor="middle" fill="#06b6d4" font-size="11" font-weight="700" font-family="system-ui">API Gateway</text>
+        <text x="431" y="96" text-anchor="middle" fill="#06b6d4" font-size="11" font-weight="700" font-family="system-ui">/ Service Mesh</text>
+        <text x="431" y="116" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Route traffic,</text>
+        <text x="431" y="130" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">auth, rate limiting</text>
+        <text x="431" y="155" text-anchor="middle" fill="#64748b" font-size="9.5" font-family="system-ui">Kong, Envoy, Istio</text>
+
+        <!-- Item 4 -->
+        <rect x="521" y="30" width="155" height="140" rx="10" fill="rgba(245,158,11,0.07)" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="598" y="58" text-anchor="middle" font-size="22" font-family="system-ui">⚡</text>
+        <text x="598" y="82" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700" font-family="system-ui">Circuit Breakers</text>
+        <text x="598" y="116" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Prevent cascade</text>
+        <text x="598" y="130" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">failures across</text>
+        <text x="598" y="144" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">services</text>
+        <text x="598" y="159" text-anchor="middle" fill="#64748b" font-size="9.5" font-family="system-ui">Resilience4j, Polly</text>
+
+        <!-- Item 5 -->
+        <rect x="688" y="30" width="152" height="140" rx="10" fill="rgba(239,68,68,0.07)" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="764" y="58" text-anchor="middle" font-size="22" font-family="system-ui">🔍</text>
+        <text x="764" y="82" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700" font-family="system-ui">Distributed</text>
+        <text x="764" y="96" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700" font-family="system-ui">Tracing</text>
+        <text x="764" y="116" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Trace requests</text>
+        <text x="764" y="130" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">across service</text>
+        <text x="764" y="144" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">boundaries</text>
+        <text x="764" y="159" text-anchor="middle" fill="#64748b" font-size="9.5" font-family="system-ui">Jaeger, Zipkin, DD</text>
+      </svg>
+    </div>
+
+    <div class="danger">
+      <div class="danger-label">⚠ Don't Skip These</div>
+      <p>If you extract a service without these prerequisites, debugging will be a nightmare. You'll spend more time on infrastructure than the feature that motivated the extraction in the first place.</p>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <div class="section-title"><div class="num">8</div> Quick Reference</div>
+    <div class="cheatsheet">
+      <div class="cs-title">📋 Microservices Cheat Sheet</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>Core Truth</strong>
+          Microservices solve organizational problems, not technical ones. Team independence is the goal.
+        </div>
+        <div class="cs-item">
+          <strong>The Rule</strong>
+          One team = one service. Two teams / one service = wrong boundary.
+        </div>
+        <div class="cs-item">
+          <strong>When to Use</strong>
+          Multiple teams need independent deploys (signal #1). Different scaling needs. Fault isolation.
+        </div>
+        <div class="cs-item">
+          <strong>When NOT to Use</strong>
+          Single team. Early stage. Bottleneck is product, not engineering scale.
+        </div>
+        <div class="cs-item">
+          <strong>Hidden Costs</strong>
+          Network latency (ns → ms). Distributed transactions. Debugging complexity. 15x operational overhead.
+        </div>
+        <div class="cs-item">
+          <strong>Practical Path</strong>
+          Monolith → first extraction (auth/notif) → more as team grows. Feel the tax.
+        </div>
+        <div class="cs-item">
+          <strong>Good First Extractions</strong>
+          Auth/identity, Email/notifications, File upload service.
+        </div>
+        <div class="cs-item">
+          <strong>Prerequisites</strong>
+          Centralized logging, health checks, API gateway, circuit breakers, distributed tracing.
+        </div>
+        <div class="cs-item">
+          <strong>Amazon Prime Video</strong>
+          Moved monitoring from microservices → monolith. Costs dropped 90%.
+        </div>
+        <div class="cs-item">
+          <strong>Conway's Law</strong>
+          Your system architecture will mirror your communication structure. Design orgs, not services.
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const btn = document.querySelector('.theme-btn');
+    if (html.getAttribute('data-theme') === 'dark') {
+      html.setAttribute('data-theme', 'light');
+      btn.textContent = '🌙 Dark';
+    } else {
+      html.setAttribute('data-theme', 'dark');
+      btn.textContent = '☀ Light';
+    }
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

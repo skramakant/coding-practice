@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 18 — Eventual Consistency | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #1e293b; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(248,250,252,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 640px; }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .card p, .card ul { font-size: 0.9rem; color: var(--text2); }
+  .card ul { padding-left: 1.2rem; }
+  .card ul li { margin-bottom: 0.35rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .danger-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 0.4rem; }
+  .success { background: var(--green-bg); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .success-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-purple { background: var(--accent-bg); color: var(--accent2); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  .anecdote { background: var(--bg2); border-left: 4px solid var(--yellow); border-radius: 0 12px 12px 0; padding: 1.25rem 1.5rem; margin: 0 0 1.5rem; }
+  code { background: var(--bg3); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: var(--green); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media(max-width:640px){ .two-col { grid-template-columns: 1fr; } }
+  .guarantee-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+  .guarantee-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: var(--accent); color: white; border-radius: 50%; font-size: 0.8rem; font-weight: 700; margin-bottom: 0.5rem; }
+  .guarantee-title { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+  .without-with { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem; }
+  .without { background: var(--red-bg); border-radius: 8px; padding: 0.6rem; font-size: 0.82rem; }
+  .with { background: var(--green-bg); border-radius: 8px; padding: 0.6rem; font-size: 0.82rem; }
+  .without h4 { color: var(--red); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.3rem; }
+  .with h4 { color: var(--green); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.3rem; }
+  .conflict-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; }
+  .conflict-card h4 { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.4rem; }
+</style>
+</head>
+<body>
+<nav>
+  <span class="nav-brand">Day 18 · Eventual Consistency</span>
+  <div class="nav-links">
+    <a href="#intro">Intro</a>
+    <a href="#guarantees">Session Guarantees</a>
+    <a href="#rightchoice">Right Choice</a>
+    <a href="#hurts">Will Hurt</a>
+    <a href="#conflicts">Conflict Resolution</a>
+    <a href="#patterns">Practical Patterns</a>
+    <a href="#strong">Opting Strong</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀️ Light</button>
+</nav>
+
+<div class="page">
+  <div class="hero">
+    <div class="hero-tag">Day 18 of 25 · Scaling & Architecture</div>
+    <h1>Eventual <span>Consistency</span></h1>
+    <p class="hero-sub">Eventual consistency isn't a compromise — it's a deliberate engineering choice. DynamoDB is eventually consistent by default. Most teams never pay for strong consistency. Here's why, and when to change that.</p>
+  </div>
+
+  <!-- INTRO -->
+  <section id="intro">
+    <div class="section-title"><div class="num">01</div>The Deliberate Choice</div>
+    <div class="anecdote">
+      <strong style="color:var(--yellow)">DynamoDB — Eventually Consistent by Default</strong>
+      <p style="margin-top:0.5rem;font-size:0.95rem;">DynamoDB is eventually consistent by default. You can pay for strong consistency — it costs 2x and adds latency. Most teams never turn it on. Not because they don't care about consistency, but because 2x cost and extra latency aren't worth it for most data.</p>
+    </div>
+    <div class="takeaway">
+      <div class="takeaway-label">The Mental Model Shift</div>
+      <p style="font-size:0.9rem;">Eventual consistency = <strong>deliberate engineering choice</strong>, not a compromise. The question is not "should I be consistent?" — the question is "what does consistency cost me here, and do I need to pay it?"</p>
+    </div>
+  </section>
+
+  <!-- SESSION GUARANTEES -->
+  <section id="guarantees">
+    <div class="section-title"><div class="num">02</div>3 Session Guarantees That Make Eventual Usable</div>
+
+    <div class="svg-wrap">
+      <svg viewBox="0 0 900 380" width="100%" style="max-width:900px;font-family:-apple-system,sans-serif;">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#6366f1"/>
+          </marker>
+          <marker id="arr-g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+          </marker>
+          <marker id="arr-r" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#ef4444"/>
+          </marker>
+        </defs>
+
+        <!-- Guarantee 1: Read-Your-Writes -->
+        <rect x="20" y="10" width="260" height="350" rx="12" fill="none" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.6"/>
+        <text x="150" y="36" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700">1. Read-Your-Writes</text>
+
+        <!-- Bad scenario -->
+        <rect x="40" y="50" width="220" height="110" rx="8" fill="#1e1010" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,2"/>
+        <text x="150" y="68" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600">❌ Without</text>
+        <rect x="55" y="78" width="80" height="24" rx="6" fill="#242938" stroke="#2d3448"/>
+        <text x="95" y="94" text-anchor="middle" fill="#e2e8f0" font-size="9">WRITE: name=Bob</text>
+        <line x1="135" y1="90" x2="155" y2="90" stroke="#ef4444" stroke-width="1.5" marker-end="url(#arr-r)"/>
+        <rect x="158" y="78" width="80" height="24" rx="6" fill="#1e1818" stroke="#ef4444"/>
+        <text x="198" y="94" text-anchor="middle" fill="#ef4444" font-size="9">stale replica</text>
+
+        <rect x="55" y="114" width="80" height="24" rx="6" fill="#242938" stroke="#2d3448"/>
+        <text x="95" y="130" text-anchor="middle" fill="#e2e8f0" font-size="9">READ → "Alice"</text>
+        <text x="150" y="150" text-anchor="middle" fill="#94a3b8" font-size="8.5">User sees old name, files ticket</text>
+
+        <rect x="40" y="170" width="220" height="90" rx="8" fill="rgba(16,185,129,0.06)" stroke="#10b981" stroke-width="1"/>
+        <text x="150" y="188" text-anchor="middle" fill="#10b981" font-size="9" font-weight="600">✓ With</text>
+        <text x="150" y="204" text-anchor="middle" fill="#94a3b8" font-size="9">Sticky sessions or</text>
+        <text x="150" y="218" text-anchor="middle" fill="#94a3b8" font-size="9">"read from primary after write</text>
+        <text x="150" y="232" text-anchor="middle" fill="#94a3b8" font-size="9">for N seconds" rule</text>
+        <text x="150" y="248" text-anchor="middle" fill="#10b981" font-size="8.5">→ User always sees their own writes</text>
+
+        <rect x="50" y="278" width="200" height="60" rx="8" fill="var(--bg3)"/>
+        <text x="150" y="296" text-anchor="middle" fill="#94a3b8" font-size="9">After YOU write, any read</text>
+        <text x="150" y="310" text-anchor="middle" fill="#94a3b8" font-size="9">from YOUR SESSION returns</text>
+        <text x="150" y="324" text-anchor="middle" fill="#e2e8f0" font-size="9" font-weight="600">that write or newer</text>
+
+        <!-- Guarantee 2: Monotonic Reads -->
+        <rect x="320" y="10" width="260" height="350" rx="12" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.6"/>
+        <text x="450" y="36" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700">2. Monotonic Reads</text>
+
+        <rect x="340" y="50" width="220" height="110" rx="8" fill="#1e1010" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,2"/>
+        <text x="450" y="68" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600">❌ Without</text>
+        <text x="450" y="86" text-anchor="middle" fill="#94a3b8" font-size="9">Read 1 → likes: 50</text>
+        <text x="450" y="102" text-anchor="middle" fill="#ef4444" font-size="9">Read 2 → likes: 48 ← goes BACK</text>
+        <text x="450" y="118" text-anchor="middle" fill="#94a3b8" font-size="9">Read 3 → likes: 51</text>
+        <text x="450" y="140" text-anchor="middle" fill="#94a3b8" font-size="8.5">Feels broken/random to user</text>
+
+        <rect x="340" y="170" width="220" height="90" rx="8" fill="rgba(16,185,129,0.06)" stroke="#10b981" stroke-width="1"/>
+        <text x="450" y="188" text-anchor="middle" fill="#10b981" font-size="9" font-weight="600">✓ With</text>
+        <text x="450" y="204" text-anchor="middle" fill="#94a3b8" font-size="9">Session tracks highest</text>
+        <text x="450" y="218" text-anchor="middle" fill="#94a3b8" font-size="9">version observed</text>
+        <text x="450" y="232" text-anchor="middle" fill="#94a3b8" font-size="9">Refuses to go backward</text>
+        <text x="450" y="248" text-anchor="middle" fill="#10b981" font-size="8.5">50 → 51 → 53 (never lower)</text>
+
+        <rect x="350" y="278" width="200" height="60" rx="8" fill="var(--bg3)"/>
+        <text x="450" y="296" text-anchor="middle" fill="#94a3b8" font-size="9">Once session has read a value,</text>
+        <text x="450" y="310" text-anchor="middle" fill="#94a3b8" font-size="9">subsequent reads never return</text>
+        <text x="450" y="324" text-anchor="middle" fill="#e2e8f0" font-size="9" font-weight="600">an older value</text>
+
+        <!-- Guarantee 3: Causal in Session -->
+        <rect x="620" y="10" width="260" height="350" rx="12" fill="none" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.6"/>
+        <text x="750" y="36" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700">3. Causal in Session</text>
+
+        <rect x="640" y="50" width="220" height="110" rx="8" fill="#1e1010" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,2"/>
+        <text x="750" y="68" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600">❌ Without</text>
+        <text x="750" y="86" text-anchor="middle" fill="#94a3b8" font-size="9">Write: post a comment</text>
+        <text x="750" y="102" text-anchor="middle" fill="#ef4444" font-size="9">Write: reply to own comment</text>
+        <text x="750" y="118" text-anchor="middle" fill="#94a3b8" font-size="9">Reader sees reply first</text>
+        <text x="750" y="136" text-anchor="middle" fill="#ef4444" font-size="8.5">Reply before comment exists = broken</text>
+
+        <rect x="640" y="170" width="220" height="90" rx="8" fill="rgba(16,185,129,0.06)" stroke="#10b981" stroke-width="1"/>
+        <text x="750" y="188" text-anchor="middle" fill="#10b981" font-size="9" font-weight="600">✓ With</text>
+        <text x="750" y="204" text-anchor="middle" fill="#94a3b8" font-size="9">If you write A then B,</text>
+        <text x="750" y="218" text-anchor="middle" fill="#94a3b8" font-size="9">any reader seeing B</text>
+        <text x="750" y="232" text-anchor="middle" fill="#94a3b8" font-size="9">also sees A first</text>
+        <text x="750" y="248" text-anchor="middle" fill="#10b981" font-size="8.5">Causal chain preserved</text>
+
+        <rect x="650" y="278" width="200" height="60" rx="8" fill="var(--bg3)"/>
+        <text x="750" y="296" text-anchor="middle" fill="#94a3b8" font-size="9">Within your session, writes</text>
+        <text x="750" y="310" text-anchor="middle" fill="#94a3b8" font-size="9">appear causally ordered</text>
+        <text x="750" y="324" text-anchor="middle" fill="#e2e8f0" font-size="9" font-weight="600">to all readers</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- RIGHT CHOICE -->
+  <section id="rightchoice">
+    <div class="section-title"><div class="num">03</div>Where Eventual IS the Right Choice</div>
+    <div class="success">
+      <div class="success-label">✅ Good Fits for Eventual Consistency</div>
+    </div>
+    <div class="card-grid">
+      <div class="card">
+        <h3>🐦 Social Feeds</h3>
+        <p>A slightly delayed like count is invisible to users. An unavailable feed is not. Availability wins here. Nobody notices if the count is 2 seconds stale.</p>
+      </div>
+      <div class="card">
+        <h3>🛍️ Product Catalogs & Search</h3>
+        <p>Showing a product that sold out 3 seconds ago is far better than refusing to show products at all. The cost of a brief stale display is low.</p>
+      </div>
+      <div class="card">
+        <h3>📊 Analytics & Metrics</h3>
+        <p>View counts, click metrics, engagement numbers. Nobody makes financial decisions on this millisecond's number. Eventually consistent is perfectly fine.</p>
+      </div>
+      <div class="card">
+        <h3>🔄 Caching Layers</h3>
+        <p>Redis and CDN caches are eventual by nature. The origin is the source of truth. Cache staleness is expected and designed around.</p>
+      </div>
+      <div class="card">
+        <h3>💬 User-Generated Content</h3>
+        <p>Comments, reviews, non-critical profile updates. The data is not transactional. Slight delay in propagation is acceptable.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- WILL HURT -->
+  <section id="hurts">
+    <div class="section-title"><div class="num">04</div>Where Eventual WILL Hurt</div>
+    <div class="danger">
+      <div class="danger-label">❌ Do NOT Use Eventual Here</div>
+    </div>
+    <div class="card-grid">
+      <div class="card" style="border-left:3px solid var(--red)">
+        <h3>💰 Money</h3>
+        <p>Balances, charges, refunds, inventory for fulfillment. Concurrent deductions on stale reads = fraud. Two users buying the last item = negative inventory.</p>
+      </div>
+      <div class="card" style="border-left:3px solid var(--red)">
+        <h3>🔐 Identity & Access Control</h3>
+        <p>Permission revokes must take effect immediately. If IAM is eventually consistent, a revoked admin token might still work for seconds after revocation. That's a security bug.</p>
+      </div>
+      <div class="card" style="border-left:3px solid var(--red)">
+        <h3>🔑 Unique Constraints</h3>
+        <p>Username uniqueness, email uniqueness, inventory not going negative. Two users pick the same username simultaneously — both succeed if eventual. One of them is wrong.</p>
+      </div>
+      <div class="card" style="border-left:3px solid var(--red)">
+        <h3>🔒 Leader Election & Locks</h3>
+        <p>Two nodes think they hold the same lock = split-brain. Eventual consistency and distributed locking are fundamentally incompatible.</p>
+      </div>
+      <div class="card" style="border-left:3px solid var(--red)">
+        <h3>🔗 Cross-Service Workflows</h3>
+        <p>Service A writes, Service B immediately reads and finds nothing. If the workflow assumes instantaneous state propagation, eventual consistency will silently break it.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONFLICT RESOLUTION -->
+  <section id="conflicts">
+    <div class="section-title"><div class="num">05</div>Conflict Resolution Strategies</div>
+
+    <div class="svg-wrap">
+      <svg viewBox="0 0 900 320" width="100%" style="max-width:900px;font-family:-apple-system,sans-serif;">
+        <!-- Header -->
+        <text x="450" y="26" text-anchor="middle" fill="#94a3b8" font-size="12" font-weight="600">Concurrent writes on two replicas — partition heals — who wins?</text>
+
+        <!-- LWW -->
+        <rect x="20" y="44" width="195" height="260" rx="12" fill="#1e1818" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="117" y="68" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700">Last-Write-Wins (LWW)</text>
+        <text x="117" y="88" text-anchor="middle" fill="#94a3b8" font-size="9">Latest timestamp wins</text>
+        <rect x="35" y="98" width="165" height="28" rx="6" fill="#242938"/>
+        <text x="117" y="116" text-anchor="middle" fill="#e2e8f0" font-size="9">Node A: name=Bob @ T=100</text>
+        <rect x="35" y="132" width="165" height="28" rx="6" fill="#242938"/>
+        <text x="117" y="150" text-anchor="middle" fill="#e2e8f0" font-size="9">Node B: name=Alice @ T=101</text>
+        <text x="117" y="180" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700">→ Alice wins</text>
+        <text x="117" y="196" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600">Bob's write SILENTLY GONE</text>
+        <rect x="35" y="210" width="165" height="58" rx="6" fill="#2a1010" stroke="#ef4444" stroke-width="0.5"/>
+        <text x="117" y="228" text-anchor="middle" fill="#94a3b8" font-size="9">Clocks not perfectly synced.</text>
+        <text x="117" y="242" text-anchor="middle" fill="#94a3b8" font-size="9">Most incidents involve LWW</text>
+        <text x="117" y="256" text-anchor="middle" fill="#94a3b8" font-size="9">silently discarding data</text>
+        <text x="117" y="284" text-anchor="middle" fill="#f59e0b" font-size="9">⚠ Default in most systems</text>
+
+        <!-- Vector Clocks -->
+        <rect x="230" y="44" width="195" height="260" rx="12" fill="#1a1f2e" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="327" y="68" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700">Vector Clocks</text>
+        <text x="327" y="88" text-anchor="middle" fill="#94a3b8" font-size="9">Track version vectors per node</text>
+        <rect x="245" y="98" width="165" height="28" rx="6" fill="#242938"/>
+        <text x="327" y="116" text-anchor="middle" fill="#e2e8f0" font-size="9">Node A: {A:2, B:1}</text>
+        <rect x="245" y="132" width="165" height="28" rx="6" fill="#242938"/>
+        <text x="327" y="150" text-anchor="middle" fill="#e2e8f0" font-size="9">Node B: {A:1, B:3}</text>
+        <text x="327" y="178" text-anchor="middle" fill="#818cf8" font-size="10">→ Conflict detected</text>
+        <text x="327" y="194" text-anchor="middle" fill="#94a3b8" font-size="9">Neither dominates the other</text>
+        <rect x="245" y="210" width="165" height="58" rx="6" fill="#0f0f1e" stroke="#6366f1" stroke-width="0.5"/>
+        <text x="327" y="228" text-anchor="middle" fill="#94a3b8" font-size="9">App logic decides merge.</text>
+        <text x="327" y="242" text-anchor="middle" fill="#94a3b8" font-size="9">Correct but requires</text>
+        <text x="327" y="256" text-anchor="middle" fill="#94a3b8" font-size="9">application-level handling</text>
+        <text x="327" y="284" text-anchor="middle" fill="#10b981" font-size="9">✓ No silent data loss</text>
+
+        <!-- CRDTs -->
+        <rect x="440" y="44" width="195" height="260" rx="12" fill="#0a1810" stroke="#10b981" stroke-width="1.5"/>
+        <text x="537" y="68" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700">CRDTs</text>
+        <text x="537" y="88" text-anchor="middle" fill="#94a3b8" font-size="9">Conflict-free Replicated Data Types</text>
+        <rect x="455" y="98" width="165" height="28" rx="6" fill="#242938"/>
+        <text x="537" y="116" text-anchor="middle" fill="#e2e8f0" font-size="9">Counter: +5 on A, +3 on B</text>
+        <rect x="455" y="132" width="165" height="28" rx="6" fill="#242938"/>
+        <text x="537" y="150" text-anchor="middle" fill="#10b981" font-size="9">Always merges to +8</text>
+        <text x="537" y="178" text-anchor="middle" fill="#10b981" font-size="10">Deterministic merge</text>
+        <text x="537" y="194" text-anchor="middle" fill="#94a3b8" font-size="9">Designed to "just work"</text>
+        <rect x="455" y="210" width="165" height="58" rx="6" fill="#132316" stroke="#10b981" stroke-width="0.5"/>
+        <text x="537" y="228" text-anchor="middle" fill="#94a3b8" font-size="9">Counters, sets, maps</text>
+        <text x="537" y="242" text-anchor="middle" fill="#94a3b8" font-size="9">Riak, Redis, Automerge,</text>
+        <text x="537" y="256" text-anchor="middle" fill="#94a3b8" font-size="9">Yjs — growing in prod</text>
+        <text x="537" y="284" text-anchor="middle" fill="#10b981" font-size="9">✓ No app logic needed</text>
+
+        <!-- App-level merge -->
+        <rect x="650" y="44" width="230" height="260" rx="12" fill="#1a1f2e" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="765" y="68" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700">App-Level Merge</text>
+        <text x="765" y="88" text-anchor="middle" fill="#94a3b8" font-size="9">You write the merge function</text>
+        <rect x="665" y="98" width="200" height="28" rx="6" fill="#242938"/>
+        <text x="765" y="116" text-anchor="middle" fill="#e2e8f0" font-size="9">Conflict detected → call mergeUser()</text>
+        <rect x="665" y="132" width="200" height="28" rx="6" fill="#242938"/>
+        <text x="765" y="150" text-anchor="middle" fill="#e2e8f0" font-size="9">Your logic: keep both, pick newer</text>
+        <text x="765" y="178" text-anchor="middle" fill="#f59e0b" font-size="10">Flexible. Easy to get wrong.</text>
+        <text x="765" y="194" text-anchor="middle" fill="#94a3b8" font-size="9">Needs thorough testing</text>
+        <rect x="665" y="210" width="200" height="58" rx="6" fill="#1a1808" stroke="#f59e0b" stroke-width="0.5"/>
+        <text x="765" y="228" text-anchor="middle" fill="#94a3b8" font-size="9">Edge cases compound.</text>
+        <text x="765" y="242" text-anchor="middle" fill="#94a3b8" font-size="9">Good for custom domain</text>
+        <text x="765" y="256" text-anchor="middle" fill="#94a3b8" font-size="9">logic (shopping cart merge)</text>
+        <text x="765" y="284" text-anchor="middle" fill="#f59e0b" font-size="9">⚠ Needs comprehensive tests</text>
+      </svg>
+    </div>
+
+    <div class="warn">
+      <div class="warn-label">⚠️ The LWW Warning</div>
+      <p style="font-size:0.9rem;">Most systems default to Last-Write-Wins because it's simple. Most production incidents involving eventual consistency involve LWW <strong>silently discarding data</strong>. The losing write is just gone — no error, no log entry, no indication anything was lost.</p>
+    </div>
+  </section>
+
+  <!-- PRACTICAL PATTERNS -->
+  <section id="patterns">
+    <div class="section-title"><div class="num">06</div>Practical Patterns for Eventual Consistency</div>
+
+    <div class="svg-wrap">
+      <svg viewBox="0 0 900 200" width="100%" style="max-width:900px;font-family:-apple-system,sans-serif;">
+        <!-- Read-after-write routing -->
+        <text x="450" y="22" text-anchor="middle" fill="#94a3b8" font-size="12" font-weight="600">Read-After-Write Routing Pattern</text>
+
+        <rect x="30" y="40" width="100" height="36" rx="8" fill="#1a1f2e" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="80" y="58" text-anchor="middle" fill="#e2e8f0" font-size="10">User</text>
+        <text x="80" y="70" text-anchor="middle" fill="#94a3b8" font-size="9">writes name</text>
+
+        <line x1="130" y1="58" x2="185" y2="58" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4,2"/>
+        <text x="157" y="50" text-anchor="middle" fill="#94a3b8" font-size="8">WRITE</text>
+
+        <rect x="185" y="40" width="120" height="36" rx="8" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="245" y="56" text-anchor="middle" fill="#10b981" font-size="10">Primary Node</text>
+        <text x="245" y="70" text-anchor="middle" fill="#94a3b8" font-size="9">accepts write</text>
+
+        <text x="370" y="50" text-anchor="middle" fill="#94a3b8" font-size="8">replicating...</text>
+        <line x1="305" y1="58" x2="420" y2="88" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="305" y1="58" x2="420" y2="148" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,2"/>
+
+        <rect x="420" y="70" width="120" height="36" rx="8" fill="#1a1f2e" stroke="#2d3448"/>
+        <text x="480" y="86" text-anchor="middle" fill="#e2e8f0" font-size="10">Replica A</text>
+        <text x="480" y="100" text-anchor="middle" fill="#94a3b8" font-size="9">may be stale</text>
+
+        <rect x="420" y="130" width="120" height="36" rx="8" fill="#1a1f2e" stroke="#2d3448"/>
+        <text x="480" y="146" text-anchor="middle" fill="#e2e8f0" font-size="10">Replica B</text>
+        <text x="480" y="160" text-anchor="middle" fill="#94a3b8" font-size="9">may be stale</text>
+
+        <rect x="580" y="40" width="140" height="36" rx="8" fill="#0a1e24" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="650" y="56" text-anchor="middle" fill="#06b6d4" font-size="10">Router / LB</text>
+        <text x="650" y="70" text-anchor="middle" fill="#94a3b8" font-size="9">sticky for 5-30s</text>
+
+        <line x1="130" y1="68" x2="580" y2="55" stroke="#6366f1" stroke-width="1" stroke-dasharray="3,2"/>
+        <text x="355" y="44" text-anchor="middle" fill="#6366f1" font-size="8">route next reads to primary</text>
+
+        <line x1="720" y1="58" x2="790" y2="58" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4,2"/>
+        <text x="755" y="50" text-anchor="middle" fill="#94a3b8" font-size="8">READ</text>
+
+        <rect x="790" y="40" width="100" height="36" rx="8" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="840" y="58" text-anchor="middle" fill="#10b981" font-size="10">Primary</text>
+        <text x="840" y="70" text-anchor="middle" fill="#94a3b8" font-size="9">fresh read</text>
+
+        <text x="450" y="185" text-anchor="middle" fill="#94a3b8" font-size="9.5">After write, route user's reads to same node for 5-30 seconds. Cheap sticky-session logic that solves read-your-writes.</text>
+      </svg>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <h3>🔑 Idempotent Writes</h3>
+        <p>Same write twice = no-op. Use idempotency keys. Store key + result. Duplicate key = return stored result. Prevents double-processing on retries.</p>
+        <code style="display:block;margin-top:0.5rem;font-size:0.82rem;">POST /charge {idempotency_key: "ord-123"}</code>
+      </div>
+      <div class="card">
+        <h3>📝 Versioned Writes</h3>
+        <p>Every write includes a version or conditional check: "only apply if current version is X." DynamoDB condition expressions, Cassandra lightweight transactions.</p>
+        <code style="display:block;margin-top:0.5rem;font-size:0.82rem;">ConditionExpression: version = :expected</code>
+      </div>
+      <div class="card">
+        <h3>↩️ Compensating Actions</h3>
+        <p>When you can't make multi-step operations atomic, design the inverse operation. Payment failed after inventory reserved = release inventory. Core of the Saga pattern.</p>
+      </div>
+      <div class="card">
+        <h3>📈 Observability on Lag</h3>
+        <p>Track replication lag as a first-class metric. Alert when it exceeds tolerance (usually 1-5s for user-facing, longer for analytics). If you can't see lag, you can't debug consistency bugs.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- OPTING INTO STRONG -->
+  <section id="strong">
+    <div class="section-title"><div class="num">07</div>Opting Into Strong Consistency</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Database</th>
+            <th>How to Enable Strong</th>
+            <th>Cost</th>
+            <th>Granularity</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>DynamoDB</strong></td>
+            <td><code>ConsistentRead=true</code></td>
+            <td><span class="badge badge-red">2x read cost</span></td>
+            <td>Per-request</td>
+          </tr>
+          <tr>
+            <td><strong>Cassandra</strong></td>
+            <td>Consistency level: <code>ONE</code> / <code>QUORUM</code> / <code>ALL</code></td>
+            <td><span class="badge badge-yellow">Latency overhead</span></td>
+            <td>Per-query</td>
+          </tr>
+          <tr>
+            <td><strong>Cosmos DB</strong></td>
+            <td>5 consistency levels (Strong, Bounded Staleness, Session, Consistent Prefix, Eventual)</td>
+            <td><span class="badge badge-yellow">Higher RU cost</span></td>
+            <td>Per-account or per-request</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="takeaway">
+      <div class="takeaway-label">💡 The Rule</div>
+      <p style="font-size:0.9rem;">Default to eventual. Opt into strong for specific operations that need it. <strong>Shopping cart = eventual. Checkout that charges the card = strong.</strong> Don't set the whole system to strong "to be safe" — you pay the latency and cost tax everywhere for properties most operations don't need.</p>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <div class="section-title"><div class="num">08</div>Quick Reference</div>
+    <div class="cheatsheet">
+      <div class="cs-title">⚡ Eventual Consistency Cheat Sheet</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>Read-Your-Writes guarantee</strong>
+          Your session always sees your own writes. Sticky sessions or primary-read-after-write routing.
+        </div>
+        <div class="cs-item">
+          <strong>Monotonic Reads guarantee</strong>
+          Once you've read version N, never see version &lt;N. Session tracks max version seen.
+        </div>
+        <div class="cs-item">
+          <strong>Causal in Session</strong>
+          A → B in your writes means readers seeing B also see A. No orphaned replies.
+        </div>
+        <div class="cs-item">
+          <strong>LWW danger</strong>
+          Last-Write-Wins silently discards data. Most eventual consistency incidents trace back to LWW.
+        </div>
+        <div class="cs-item">
+          <strong>CRDTs</strong>
+          Counters/sets/maps with deterministic merge. No app logic needed. Riak, Redis, Automerge.
+        </div>
+        <div class="cs-item">
+          <strong>Idempotency keys</strong>
+          Store key + result. Duplicate write returns stored result. Prevents double-processing.
+        </div>
+        <div class="cs-item">
+          <strong>Good fit: feeds, catalogs, analytics</strong>
+          Availability &gt; freshness. Slight staleness invisible to users.
+        </div>
+        <div class="cs-item">
+          <strong>Bad fit: money, auth, unique constraints</strong>
+          Strong consistency required. Concurrent eventual writes = fraud / split-brain / duplicates.
+        </div>
+        <div class="cs-item">
+          <strong>Replication lag observability</strong>
+          Track lag as first-class metric. Alert at 1-5s user-facing. Can't debug what you can't see.
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+function toggleTheme() {
+  const html = document.documentElement;
+  const btn = document.querySelector('.theme-btn');
+  if (html.dataset.theme === 'dark') {
+    html.dataset.theme = 'light';
+    btn.textContent = '🌙 Dark';
+  } else {
+    html.dataset.theme = 'dark';
+    btn.textContent = '☀️ Light';
+  }
+}
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.08 });
+document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

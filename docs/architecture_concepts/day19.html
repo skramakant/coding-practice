@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 19 — Distributed Transactions | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #1e293b; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(248,250,252,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 640px; }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .card p, .card ul { font-size: 0.9rem; color: var(--text2); }
+  .card ul { padding-left: 1.2rem; }
+  .card ul li { margin-bottom: 0.35rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .danger-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 0.4rem; }
+  .success { background: var(--green-bg); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .success-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-purple { background: var(--accent-bg); color: var(--accent2); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  .anecdote { background: var(--bg2); border-left: 4px solid var(--yellow); border-radius: 0 12px 12px 0; padding: 1.25rem 1.5rem; margin: 0 0 1.5rem; }
+  code { background: var(--bg3); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: var(--green); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media(max-width:640px){ .two-col { grid-template-columns: 1fr; } }
+  .decision-step { display: flex; gap: 1rem; padding: 1rem; background: var(--bg3); border-radius: 10px; margin-bottom: 0.75rem; align-items: flex-start; }
+  .decision-num { width: 28px; height: 28px; background: var(--accent); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .decision-content { font-size: 0.9rem; }
+  .decision-content strong { color: var(--accent2); }
+</style>
+</head>
+<body>
+<nav>
+  <span class="nav-brand">Day 19 · Distributed Transactions</span>
+  <div class="nav-links">
+    <a href="#story">Story</a>
+    <a href="#problem">Why Hard</a>
+    <a href="#2pc">2PC</a>
+    <a href="#saga">Saga Pattern</a>
+    <a href="#outbox">Outbox Pattern</a>
+    <a href="#decision">Decision</a>
+    <a href="#traps">Traps</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀️ Light</button>
+</nav>
+
+<div class="page">
+  <div class="hero">
+    <div class="hero-tag">Day 19 of 25 · Scaling & Architecture</div>
+    <h1>Distributed <span>Transactions</span></h1>
+    <p class="hero-sub">A European bank spent 18 months building a distributed transaction system. It took 4 months to rip out and replace with sagas. The lesson cost 2 years. Here's what they learned so you don't have to.</p>
+  </div>
+
+  <!-- STORY -->
+  <section id="story">
+    <div class="section-title"><div class="num">01</div>The 2-Year Lesson</div>
+    <div class="anecdote">
+      <strong style="color:var(--yellow)">European Bank, 2017</strong>
+      <p style="margin-top:0.5rem;font-size:0.95rem;">18 months building a distributed transaction system across 12 microservices. Every payment required 2PC spanning 4 databases. Under load, the coordinator became a bottleneck. Under network partitions, transactions hung for minutes.</p>
+      <p style="margin-top:0.5rem;font-size:0.95rem;">Eventually ripped out and replaced with sagas. The rewrite took 4 months. The lesson cost 2 years.</p>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <h3>What Is a Distributed Transaction?</h3>
+        <p>An operation that needs to succeed or fail <strong>as a unit</strong> across more than one database or service.</p>
+        <p style="margin-top:0.5rem;">Classic example: place order = debit account + reserve inventory + create order record + send confirmation. If any step fails, ALL must roll back.</p>
+      </div>
+      <div class="card">
+        <h3>Single DB vs Multi-Service</h3>
+        <p><strong>Single DB:</strong> <code>BEGIN</code>, do work, <code>COMMIT</code> or <code>ROLLBACK</code>. ACID. Done.</p>
+        <p style="margin-top:0.5rem;"><strong>Multiple services with different DBs:</strong> No shared coordinator, no shared storage, network between them is unreliable. Need something fundamentally different.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHY HARD -->
+  <section id="problem">
+    <div class="section-title"><div class="num">02</div>Why Distributed Transactions Are Hard</div>
+    <div class="danger">
+      <div class="danger-label">Failure Modes That Don't Exist in Single-DB</div>
+      <ul style="padding-left:1.2rem;font-size:0.9rem;display:grid;gap:0.35rem;">
+        <li>Participant votes yes, then <strong>crashes before applying the commit</strong></li>
+        <li>Coordinator <strong>crashes after collecting votes but before sending the decision</strong></li>
+        <li>Network partition leaves <strong>some committed and others uncertain</strong></li>
+        <li>Locks held during protocol <strong>block other work for seconds or minutes</strong></li>
+        <li>No single coordinator unless you introduce one — and that coordinator is a new SPOF</li>
+        <li>Each service has its own failure modes; network can separate coordinator from participant mid-transaction</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 2PC DIAGRAM -->
+  <section id="2pc">
+    <div class="section-title"><div class="num">03</div>Two-Phase Commit (2PC)</div>
+
+    <div class="svg-wrap">
+      <svg viewBox="0 0 920 500" width="100%" style="max-width:920px;font-family:-apple-system,sans-serif;">
+        <defs>
+          <marker id="arr-b" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#6366f1"/>
+          </marker>
+          <marker id="arr-g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+          </marker>
+          <marker id="arr-r" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#ef4444"/>
+          </marker>
+          <marker id="arr-y" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#f59e0b"/>
+          </marker>
+        </defs>
+
+        <!-- Happy Path -->
+        <rect x="10" y="10" width="440" height="480" rx="12" fill="none" stroke="#10b981" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.5"/>
+        <text x="230" y="34" text-anchor="middle" fill="#10b981" font-size="12" font-weight="700">Happy Path — All Commit</text>
+
+        <!-- Coordinator -->
+        <rect x="140" y="50" width="140" height="40" rx="10" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="210" y="67" text-anchor="middle" fill="#10b981" font-size="11" font-weight="600">Coordinator</text>
+        <text x="210" y="82" text-anchor="middle" fill="#94a3b8" font-size="9">initiates transaction</text>
+
+        <!-- Phase 1 label -->
+        <rect x="15" y="108" width="160" height="24" rx="6" fill="rgba(99,102,241,0.15)" stroke="#6366f1" stroke-width="1"/>
+        <text x="95" y="124" text-anchor="middle" fill="#818cf8" font-size="10" font-weight="700">PHASE 1: PREPARE</text>
+
+        <!-- Participants -->
+        <rect x="50" y="142" width="100" height="36" rx="8" fill="#1a1f2e" stroke="#2d3448"/>
+        <text x="100" y="158" text-anchor="middle" fill="#e2e8f0" font-size="10">Payments DB</text>
+        <text x="100" y="171" text-anchor="middle" fill="#94a3b8" font-size="8.5">participant A</text>
+
+        <rect x="190" y="142" width="100" height="36" rx="8" fill="#1a1f2e" stroke="#2d3448"/>
+        <text x="240" y="158" text-anchor="middle" fill="#e2e8f0" font-size="10">Inventory DB</text>
+        <text x="240" y="171" text-anchor="middle" fill="#94a3b8" font-size="8.5">participant B</text>
+
+        <rect x="330" y="142" width="100" height="36" rx="8" fill="#1a1f2e" stroke="#2d3448"/>
+        <text x="380" y="158" text-anchor="middle" fill="#e2e8f0" font-size="10">Orders DB</text>
+        <text x="380" y="171" text-anchor="middle" fill="#94a3b8" font-size="8.5">participant C</text>
+
+        <!-- Phase 1 arrows: prepare -->
+        <line x1="180" y1="90" x2="100" y2="142" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arr-b)"/>
+        <text x="120" y="112" text-anchor="middle" fill="#818cf8" font-size="8.5">can you commit?</text>
+
+        <line x1="210" y1="90" x2="240" y2="142" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arr-b)"/>
+        <text x="225" y="112" text-anchor="middle" fill="#818cf8" font-size="8.5">can you commit?</text>
+
+        <line x1="240" y1="90" x2="380" y2="142" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arr-b)"/>
+        <text x="320" y="108" text-anchor="middle" fill="#818cf8" font-size="8.5">can you commit?</text>
+
+        <!-- Phase 1 responses: YES -->
+        <line x1="100" y1="178" x2="185" y2="220" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)"/>
+        <text x="115" y="210" text-anchor="middle" fill="#10b981" font-size="8.5">YES ✓</text>
+
+        <line x1="240" y1="178" x2="210" y2="220" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)"/>
+        <text x="225" y="210" text-anchor="middle" fill="#10b981" font-size="8.5">YES ✓</text>
+
+        <line x1="380" y1="178" x2="235" y2="220" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)"/>
+        <text x="355" y="208" text-anchor="middle" fill="#10b981" font-size="8.5">YES ✓</text>
+
+        <rect x="140" y="220" width="140" height="36" rx="8" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="210" y="238" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600">All YES received</text>
+        <text x="210" y="251" text-anchor="middle" fill="#94a3b8" font-size="8.5">participants hold locks</text>
+
+        <!-- Phase 2 label -->
+        <rect x="15" y="270" width="160" height="24" rx="6" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1"/>
+        <text x="95" y="286" text-anchor="middle" fill="#10b981" font-size="10" font-weight="700">PHASE 2: COMMIT</text>
+
+        <!-- Commit arrows -->
+        <line x1="180" y1="256" x2="100" y2="300" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)"/>
+        <text x="120" y="280" text-anchor="middle" fill="#10b981" font-size="8.5">COMMIT</text>
+
+        <line x1="210" y1="256" x2="240" y2="300" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)"/>
+        <text x="230" y="280" text-anchor="middle" fill="#10b981" font-size="8.5">COMMIT</text>
+
+        <line x1="240" y1="256" x2="380" y2="300" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)"/>
+        <text x="320" y="278" text-anchor="middle" fill="#10b981" font-size="8.5">COMMIT</text>
+
+        <rect x="50" y="300" width="100" height="36" rx="8" fill="#132316" stroke="#10b981" stroke-width="1"/>
+        <text x="100" y="322" text-anchor="middle" fill="#10b981" font-size="10">committed ✓</text>
+
+        <rect x="190" y="300" width="100" height="36" rx="8" fill="#132316" stroke="#10b981" stroke-width="1"/>
+        <text x="240" y="322" text-anchor="middle" fill="#10b981" font-size="10">committed ✓</text>
+
+        <rect x="330" y="300" width="100" height="36" rx="8" fill="#132316" stroke="#10b981" stroke-width="1"/>
+        <text x="380" y="322" text-anchor="middle" fill="#10b981" font-size="10">committed ✓</text>
+
+        <!-- Cost summary -->
+        <rect x="20" y="356" width="415" height="120" rx="10" fill="var(--bg3)"/>
+        <text x="227" y="376" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600">2PC Costs</text>
+        <text x="227" y="394" text-anchor="middle" fill="#f59e0b" font-size="10">⚠ Latency: 2 full round trips — 5ms local DB becomes 50-200ms</text>
+        <text x="227" y="412" text-anchor="middle" fill="#f59e0b" font-size="10">⚠ Blocking: locks held from vote-yes until final decision</text>
+        <text x="227" y="430" text-anchor="middle" fill="#ef4444" font-size="10">✗ SPOF: coordinator crashes = participants stuck with locks</text>
+        <text x="227" y="448" text-anchor="middle" fill="#ef4444" font-size="10">✗ CP protocol: minority side hangs during partition</text>
+        <text x="227" y="466" text-anchor="middle" fill="#94a3b8" font-size="9">Transactions hang, not fail gracefully</text>
+
+        <!-- Failure Path -->
+        <rect x="470" y="10" width="440" height="480" rx="12" fill="none" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.5"/>
+        <text x="690" y="34" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="700">Failure — Coordinator Crashes</text>
+
+        <rect x="600" y="50" width="140" height="40" rx="10" fill="#1e1010" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="670" y="67" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="600">Coordinator</text>
+        <text x="670" y="82" text-anchor="middle" fill="#94a3b8" font-size="9">collects YES votes</text>
+
+        <!-- Collected YES -->
+        <rect x="490" y="100" width="120" height="36" rx="8" fill="#132316" stroke="#10b981" stroke-width="1"/>
+        <text x="550" y="120" text-anchor="middle" fill="#10b981" font-size="9">Payments: YES ✓</text>
+
+        <rect x="630" y="100" width="120" height="36" rx="8" fill="#132316" stroke="#10b981" stroke-width="1"/>
+        <text x="690" y="120" text-anchor="middle" fill="#10b981" font-size="9">Inventory: YES ✓</text>
+
+        <rect x="770" y="100" width="100" height="36" rx="8" fill="#132316" stroke="#10b981" stroke-width="1"/>
+        <text x="820" y="120" text-anchor="middle" fill="#10b981" font-size="9">Orders: YES ✓</text>
+
+        <!-- Crash -->
+        <rect x="590" y="160" width="160" height="44" rx="8" fill="#2a0a0a" stroke="#ef4444" stroke-width="2"/>
+        <text x="670" y="179" text-anchor="middle" fill="#ef4444" font-size="13" font-weight="700">💥 CRASH</text>
+        <text x="670" y="196" text-anchor="middle" fill="#94a3b8" font-size="9">after phase 1, before phase 2</text>
+
+        <!-- Participants stuck -->
+        <rect x="490" y="228" width="120" height="50" rx="8" fill="#1a1818" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,2"/>
+        <text x="550" y="246" text-anchor="middle" fill="#f59e0b" font-size="10">Payments DB</text>
+        <text x="550" y="260" text-anchor="middle" fill="#94a3b8" font-size="9">🔒 holding locks</text>
+        <text x="550" y="273" text-anchor="middle" fill="#ef4444" font-size="8.5">waiting...</text>
+
+        <rect x="630" y="228" width="120" height="50" rx="8" fill="#1a1818" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,2"/>
+        <text x="690" y="246" text-anchor="middle" fill="#f59e0b" font-size="10">Inventory DB</text>
+        <text x="690" y="260" text-anchor="middle" fill="#94a3b8" font-size="9">🔒 holding locks</text>
+        <text x="690" y="273" text-anchor="middle" fill="#ef4444" font-size="8.5">waiting...</text>
+
+        <rect x="770" y="228" width="100" height="50" rx="8" fill="#1a1818" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,2"/>
+        <text x="820" y="246" text-anchor="middle" fill="#f59e0b" font-size="10">Orders DB</text>
+        <text x="820" y="260" text-anchor="middle" fill="#94a3b8" font-size="9">🔒 holding locks</text>
+        <text x="820" y="273" text-anchor="middle" fill="#ef4444" font-size="8.5">waiting...</text>
+
+        <rect x="490" y="300" width="390" height="36" rx="8" fill="#2a1010" stroke="#ef4444" stroke-width="1"/>
+        <text x="685" y="316" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="600">All participants STUCK — holding locks indefinitely</text>
+        <text x="685" y="328" text-anchor="middle" fill="#94a3b8" font-size="8.5">Other transactions queue behind them. System throughput collapses.</text>
+
+        <rect x="490" y="352" width="390" height="120" rx="10" fill="var(--bg3)"/>
+        <text x="685" y="372" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600">Use 2PC only when:</text>
+        <text x="685" y="390" text-anchor="middle" fill="#94a3b8" font-size="9.5">✓ Small number of participants (2-3)</text>
+        <text x="685" y="407" text-anchor="middle" fill="#94a3b8" font-size="9.5">✓ All in same datacenter, reliable networking</text>
+        <text x="685" y="424" text-anchor="middle" fill="#94a3b8" font-size="9.5">✓ Operations infrequent, can tolerate latency</text>
+        <text x="685" y="441" text-anchor="middle" fill="#94a3b8" font-size="9.5">✓ Correctness so critical that blocking is preferred</text>
+        <text x="685" y="462" text-anchor="middle" fill="#f59e0b" font-size="9">3PC: theoretical improvement, almost never used in production</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- SAGA PATTERN -->
+  <section id="saga">
+    <div class="section-title"><div class="num">04</div>Saga Pattern — The Practical Alternative</div>
+
+    <div class="svg-wrap">
+      <svg viewBox="0 0 920 460" width="100%" style="max-width:920px;font-family:-apple-system,sans-serif;">
+        <defs>
+          <marker id="sarr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#6366f1"/>
+          </marker>
+          <marker id="sarr-g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+          </marker>
+          <marker id="sarr-r" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#ef4444"/>
+          </marker>
+        </defs>
+
+        <!-- Happy Path: Forward -->
+        <text x="460" y="24" text-anchor="middle" fill="#94a3b8" font-size="12" font-weight="600">Saga: Happy Path (Forward)</text>
+
+        <!-- Steps forward -->
+        <rect x="20" y="40" width="160" height="56" rx="10" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="100" y="60" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600">Step 1</text>
+        <text x="100" y="75" text-anchor="middle" fill="#e2e8f0" font-size="9.5">Debit Account</text>
+        <text x="100" y="88" text-anchor="middle" fill="#94a3b8" font-size="8.5">payments DB local tx</text>
+
+        <line x1="180" y1="68" x2="225" y2="68" stroke="#10b981" stroke-width="2" marker-end="url(#sarr-g)"/>
+        <text x="202" y="60" text-anchor="middle" fill="#10b981" font-size="8">✓</text>
+
+        <rect x="225" y="40" width="160" height="56" rx="10" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="305" y="60" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600">Step 2</text>
+        <text x="305" y="75" text-anchor="middle" fill="#e2e8f0" font-size="9.5">Reserve Inventory</text>
+        <text x="305" y="88" text-anchor="middle" fill="#94a3b8" font-size="8.5">inventory DB local tx</text>
+
+        <line x1="385" y1="68" x2="430" y2="68" stroke="#10b981" stroke-width="2" marker-end="url(#sarr-g)"/>
+        <text x="407" y="60" text-anchor="middle" fill="#10b981" font-size="8">✓</text>
+
+        <rect x="430" y="40" width="160" height="56" rx="10" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="510" y="60" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600">Step 3</text>
+        <text x="510" y="75" text-anchor="middle" fill="#e2e8f0" font-size="9.5">Create Order</text>
+        <text x="510" y="88" text-anchor="middle" fill="#94a3b8" font-size="8.5">orders DB local tx</text>
+
+        <line x1="590" y1="68" x2="635" y2="68" stroke="#10b981" stroke-width="2" marker-end="url(#sarr-g)"/>
+        <text x="612" y="60" text-anchor="middle" fill="#10b981" font-size="8">✓</text>
+
+        <rect x="635" y="40" width="160" height="56" rx="10" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="715" y="60" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600">Step 4</text>
+        <text x="715" y="75" text-anchor="middle" fill="#e2e8f0" font-size="9.5">Send Confirmation</text>
+        <text x="715" y="88" text-anchor="middle" fill="#94a3b8" font-size="8.5">notifications local tx</text>
+
+        <rect x="825" y="48" width="80" height="40" rx="8" fill="#132316" stroke="#10b981" stroke-width="2"/>
+        <text x="865" y="65" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700">Done ✓</text>
+        <text x="865" y="79" text-anchor="middle" fill="#94a3b8" font-size="8.5">order placed</text>
+
+        <line x1="795" y1="68" x2="825" y2="68" stroke="#10b981" stroke-width="2" marker-end="url(#sarr-g)"/>
+
+        <!-- Failure Path -->
+        <text x="460" y="128" text-anchor="middle" fill="#94a3b8" font-size="12" font-weight="600">Saga: Failure at Step 3 → Compensating Actions Run in Reverse</text>
+
+        <!-- Steps forward again (greyed) -->
+        <rect x="20" y="148" width="160" height="56" rx="10" fill="#132316" stroke="#10b981" stroke-width="1"/>
+        <text x="100" y="168" text-anchor="middle" fill="#10b981" font-size="10">Step 1 ✓</text>
+        <text x="100" y="183" text-anchor="middle" fill="#94a3b8" font-size="9">Debit Account</text>
+        <text x="100" y="196" text-anchor="middle" fill="#94a3b8" font-size="8.5">committed</text>
+
+        <line x1="180" y1="176" x2="225" y2="176" stroke="#10b981" stroke-width="1.5" marker-end="url(#sarr-g)"/>
+
+        <rect x="225" y="148" width="160" height="56" rx="10" fill="#132316" stroke="#10b981" stroke-width="1"/>
+        <text x="305" y="168" text-anchor="middle" fill="#10b981" font-size="10">Step 2 ✓</text>
+        <text x="305" y="183" text-anchor="middle" fill="#94a3b8" font-size="9">Reserve Inventory</text>
+        <text x="305" y="196" text-anchor="middle" fill="#94a3b8" font-size="8.5">committed</text>
+
+        <line x1="385" y1="176" x2="430" y2="176" stroke="#10b981" stroke-width="1.5" marker-end="url(#sarr-g)"/>
+
+        <rect x="430" y="148" width="160" height="56" rx="10" fill="#2a0a0a" stroke="#ef4444" stroke-width="2"/>
+        <text x="510" y="166" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="600">Step 3 💥</text>
+        <text x="510" y="181" text-anchor="middle" fill="#94a3b8" font-size="9">Create Order FAILS</text>
+        <text x="510" y="196" text-anchor="middle" fill="#ef4444" font-size="8.5">trigger compensations</text>
+
+        <rect x="635" y="148" width="160" height="56" rx="10" fill="#1a1f2e" stroke="#2d3448" stroke-width="1" opacity="0.4"/>
+        <text x="715" y="172" text-anchor="middle" fill="#94a3b8" font-size="10">Step 4</text>
+        <text x="715" y="188" text-anchor="middle" fill="#94a3b8" font-size="9">Never reached</text>
+
+        <!-- Compensation arrows (reverse) -->
+        <text x="460" y="235" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="600">↓ Run compensating actions IN REVERSE ↓</text>
+
+        <!-- Compensation Step 2 -->
+        <rect x="225" y="258" width="160" height="56" rx="10" fill="#1e1010" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="305" y="276" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="600">Compensate Step 2</text>
+        <text x="305" y="291" text-anchor="middle" fill="#e2e8f0" font-size="9">Release Inventory</text>
+        <text x="305" y="306" text-anchor="middle" fill="#94a3b8" font-size="8.5">undo reservation</text>
+
+        <line x1="430" y1="204" x2="380" y2="258" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#sarr-r)"/>
+
+        <!-- Compensation Step 1 -->
+        <rect x="20" y="258" width="160" height="56" rx="10" fill="#1e1010" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="100" y="276" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="600">Compensate Step 1</text>
+        <text x="100" y="291" text-anchor="middle" fill="#e2e8f0" font-size="9">Refund Account</text>
+        <text x="100" y="306" text-anchor="middle" fill="#94a3b8" font-size="8.5">undo debit</text>
+
+        <line x1="225" y1="286" x2="180" y2="286" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#sarr-r)"/>
+
+        <!-- Coordination: Choreography vs Orchestration -->
+        <text x="460" y="345" text-anchor="middle" fill="#94a3b8" font-size="12" font-weight="600">Two Coordination Styles</text>
+
+        <rect x="20" y="360" width="420" height="90" rx="10" fill="#1a1f2e" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="230" y="380" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="600">Choreography</text>
+        <text x="230" y="398" text-anchor="middle" fill="#94a3b8" font-size="9.5">Services listen for events and react autonomously</text>
+        <text x="230" y="414" text-anchor="middle" fill="#94a3b8" font-size="9">AccountDebited → Inventory hears → reserves → InventoryReserved</text>
+        <text x="230" y="430" text-anchor="middle" fill="#94a3b8" font-size="9">→ Orders hears → creates order. No central brain.</text>
+        <text x="230" y="446" text-anchor="middle" fill="#f59e0b" font-size="8.5">⚠ Harder to visualize flow · Couples services through events</text>
+
+        <rect x="480" y="360" width="420" height="90" rx="10" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="690" y="380" text-anchor="middle" fill="#10b981" font-size="11" font-weight="600">Orchestration ← Preferred</text>
+        <text x="690" y="398" text-anchor="middle" fill="#94a3b8" font-size="9.5">Central orchestrator directs each service step by step</text>
+        <text x="690" y="414" text-anchor="middle" fill="#94a3b8" font-size="9">Calls payments, then inventory, then orders. On failure,</text>
+        <text x="690" y="430" text-anchor="middle" fill="#94a3b8" font-size="9">triggers compensation calls. Clearer control flow.</text>
+        <text x="690" y="446" text-anchor="middle" fill="#10b981" font-size="8.5">✓ Easier to observe, debug, reason about</text>
+      </svg>
+    </div>
+
+    <div class="warn">
+      <div class="warn-label">⚠️ What Sagas Do NOT Give You</div>
+      <p style="font-size:0.9rem;"><strong>ISOLATION.</strong> Between step 1 and step 3, another transaction can observe a debited account with no order yet created. Design around this: make intermediate states explicit (<code>order_status: pending_payment</code>), ensure readers handle in-progress workflows, use timeouts and cleanup jobs.</p>
+    </div>
+  </section>
+
+  <!-- OUTBOX PATTERN -->
+  <section id="outbox">
+    <div class="section-title"><div class="num">05</div>Outbox Pattern — Making Saga Steps Reliable</div>
+
+    <div class="svg-wrap">
+      <svg viewBox="0 0 900 280" width="100%" style="max-width:900px;font-family:-apple-system,sans-serif;">
+        <defs>
+          <marker id="oarr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#6366f1"/>
+          </marker>
+          <marker id="oarr-g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+          </marker>
+          <marker id="oarr-r" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#ef4444"/>
+          </marker>
+        </defs>
+
+        <!-- Problem -->
+        <rect x="10" y="10" width="380" height="260" rx="12" fill="none" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.5"/>
+        <text x="200" y="34" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="700">Without Outbox — Lost Event</text>
+
+        <rect x="50" y="52" width="140" height="36" rx="8" fill="#1a1f2e" stroke="#2d3448"/>
+        <text x="120" y="68" text-anchor="middle" fill="#e2e8f0" font-size="10">Service</text>
+        <text x="120" y="82" text-anchor="middle" fill="#94a3b8" font-size="9">commits local tx</text>
+
+        <line x1="190" y1="70" x2="250" y2="70" stroke="#10b981" stroke-width="1.5" marker-end="url(#oarr-g)"/>
+        <text x="220" y="62" text-anchor="middle" fill="#10b981" font-size="8.5">tx ok ✓</text>
+
+        <rect x="250" y="52" width="110" height="36" rx="8" fill="#132316" stroke="#10b981" stroke-width="1"/>
+        <text x="305" y="72" text-anchor="middle" fill="#10b981" font-size="10">DB committed</text>
+
+        <rect x="50" y="112" width="140" height="36" rx="8" fill="#2a0a0a" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="120" y="128" text-anchor="middle" fill="#ef4444" font-size="10">💥 Service crashes</text>
+        <text x="120" y="144" text-anchor="middle" fill="#94a3b8" font-size="9">before publishing event</text>
+
+        <text x="200" y="185" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="600">Event never published</text>
+        <text x="200" y="203" text-anchor="middle" fill="#94a3b8" font-size="9.5">Workflow stalls permanently</text>
+        <text x="200" y="220" text-anchor="middle" fill="#94a3b8" font-size="9">Next service never receives trigger</text>
+        <text x="200" y="240" text-anchor="middle" fill="#ef4444" font-size="9">No error visible. Silent failure.</text>
+
+        <!-- Solution: Outbox -->
+        <rect x="500" y="10" width="390" height="260" rx="12" fill="none" stroke="#10b981" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.5"/>
+        <text x="695" y="34" text-anchor="middle" fill="#10b981" font-size="12" font-weight="700">With Outbox Pattern</text>
+
+        <rect x="520" y="50" width="160" height="70" rx="8" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="600" y="68" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600">Single Local Transaction</text>
+        <text x="600" y="84" text-anchor="middle" fill="#94a3b8" font-size="9">1. Update business state</text>
+        <text x="600" y="98" text-anchor="middle" fill="#94a3b8" font-size="9">2. Write event to outbox table</text>
+        <text x="600" y="111" text-anchor="middle" fill="#10b981" font-size="8.5">Both in SAME DB transaction</text>
+
+        <rect x="720" y="50" width="140" height="70" rx="8" fill="#1a1f2e" stroke="#2d3448"/>
+        <text x="790" y="72" text-anchor="middle" fill="#e2e8f0" font-size="10">Outbox Table</text>
+        <text x="790" y="88" text-anchor="middle" fill="#94a3b8" font-size="9">events pending</text>
+        <text x="790" y="102" text-anchor="middle" fill="#94a3b8" font-size="9">publication</text>
+
+        <line x1="680" y1="85" x2="720" y2="85" stroke="#10b981" stroke-width="1.5" marker-end="url(#oarr-g)"/>
+
+        <rect x="590" y="148" width="180" height="36" rx="8" fill="#0a1e24" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="680" y="165" text-anchor="middle" fill="#06b6d4" font-size="10">Relay / CDC Process</text>
+        <text x="680" y="179" text-anchor="middle" fill="#94a3b8" font-size="8.5">polls outbox or tails WAL</text>
+
+        <line x1="790" y1="120" x2="740" y2="148" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#oarr)"/>
+
+        <rect x="590" y="208" width="180" height="36" rx="8" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="680" y="225" text-anchor="middle" fill="#10b981" font-size="10">Message Broker</text>
+        <text x="680" y="239" text-anchor="middle" fill="#94a3b8" font-size="8.5">Kafka / RabbitMQ / SQS</text>
+
+        <line x1="680" y1="184" x2="680" y2="208" stroke="#10b981" stroke-width="1.5" marker-end="url(#oarr-g)"/>
+
+        <rect x="515" y="210" width="60" height="36" rx="8" fill="#1a1f2e" stroke="#2d3448" opacity="0.6"/>
+        <text x="545" y="227" text-anchor="middle" fill="#94a3b8" font-size="9">crash</text>
+        <text x="545" y="241" text-anchor="middle" fill="#94a3b8" font-size="9">here?</text>
+        <line x1="545" y1="228" x2="590" y2="228" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,2"/>
+        <text x="567" y="248" text-anchor="middle" fill="#10b981" font-size="8.5">outbox survives</text>
+      </svg>
+    </div>
+
+    <div class="success">
+      <div class="success-label">💡 Why Outbox is High-Leverage</div>
+      <p style="font-size:0.9rem;">Business update + outbox write = one local transaction. Either both happen or neither. No lost events. No need for distributed coordination. The relay process can crash and restart — it just re-reads from the outbox. This is one of the highest-leverage patterns in distributed systems.</p>
+    </div>
+  </section>
+
+  <!-- DECISION FRAMEWORK -->
+  <section id="decision">
+    <div class="section-title"><div class="num">06</div>Decision Framework</div>
+    <div class="decision-step">
+      <div class="decision-num">1</div>
+      <div class="decision-content"><strong>Can this workflow live in a single database?</strong> Yes → put it there. One ACID transaction. Done. This is the best outcome. Don't split services just to split them.</div>
+    </div>
+    <div class="decision-step">
+      <div class="decision-num">2</div>
+      <div class="decision-content"><strong>Must cross services — can you use a saga?</strong> Model the steps. Write compensating actions. Use an orchestrator. Add outbox for reliable event publishing. Handles the vast majority of cases.</div>
+    </div>
+    <div class="decision-step">
+      <div class="decision-num">3</div>
+      <div class="decision-content"><strong>Saga not viable — justify 2PC?</strong> Use a proven coordinator. Keep participant count very low (2-3). Measure latency impact. Plan for coordinator failure scenarios explicitly.</div>
+    </div>
+    <div class="decision-step">
+      <div class="decision-num">4</div>
+      <div class="decision-content"><strong>None of the above work?</strong> Reconsider service boundaries. A workflow requiring tight multi-service transactions often means the services are split in the wrong place. Merging back is sometimes the correct answer.</div>
+    </div>
+
+    <div class="table-wrap" style="margin-top:1.5rem;">
+      <table>
+        <thead>
+          <tr>
+            <th>Approach</th>
+            <th>Isolation</th>
+            <th>Latency</th>
+            <th>Failure Model</th>
+            <th>When to Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Single DB ACID</strong></td>
+            <td><span class="badge badge-green">Full ACID</span></td>
+            <td><span class="badge badge-green">Low (5ms)</span></td>
+            <td>Local, recoverable from WAL</td>
+            <td>When all data in one DB — ideal</td>
+          </tr>
+          <tr>
+            <td><strong>Saga (Orchestrated)</strong></td>
+            <td><span class="badge badge-yellow">None (intermediate visible)</span></td>
+            <td><span class="badge badge-green">Low per step</span></td>
+            <td>Compensating actions on failure</td>
+            <td>Multi-service workflows (most cases)</td>
+          </tr>
+          <tr>
+            <td><strong>2PC</strong></td>
+            <td><span class="badge badge-green">Full atomicity</span></td>
+            <td><span class="badge badge-red">High (50-200ms)</span></td>
+            <td>Coordinator crash = hung transactions</td>
+            <td>2-3 participants, infrequent, critical</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- TRAPS -->
+  <section id="traps">
+    <div class="section-title"><div class="num">07</div>Common Traps</div>
+    <div class="danger">
+      <div class="danger-label">❌ Anti-Patterns</div>
+      <ul style="padding-left:1.2rem;font-size:0.9rem;display:grid;gap:0.4rem;">
+        <li><strong>Don't hand-roll a transaction coordinator.</strong> The edge cases in distributed consensus are subtle and brutal. Use proven implementations.</li>
+        <li><strong>Compensating action failures must be handled.</strong> What if the compensation fails? Need retry + dead letter queue + manual intervention path.</li>
+        <li><strong>2PC doesn't mean zero risk.</strong> Heuristic decisions after coordinator failure can still produce divergence. There is no perfect protocol.</li>
+        <li><strong>Don't use distributed transactions to paper over bad service boundaries.</strong> If you constantly need tight transaction coordination across services, the services may be wrong split.</li>
+        <li><strong>Don't forget the outbox.</strong> Service commits local tx then crashes before emitting event = permanently stalled workflow with no visible error.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <div class="section-title"><div class="num">08</div>Quick Reference</div>
+    <div class="cheatsheet">
+      <div class="cs-title">⚡ Distributed Transactions Cheat Sheet</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>First choice: single DB</strong>
+          If all data can live in one DB, use ACID. Don't distribute what doesn't need to be.
+        </div>
+        <div class="cs-item">
+          <strong>Second choice: Saga</strong>
+          Local transactions + compensating actions. No distributed locks. Works across services.
+        </div>
+        <div class="cs-item">
+          <strong>Saga coordination</strong>
+          Orchestration &gt; Choreography for anything non-trivial. Easier to observe and debug.
+        </div>
+        <div class="cs-item">
+          <strong>Saga lacks isolation</strong>
+          Intermediate states visible. Make them explicit: <code>status: pending_payment</code>
+        </div>
+        <div class="cs-item">
+          <strong>Outbox pattern</strong>
+          Write event to outbox IN SAME TRANSACTION as business update. Relay publishes separately.
+        </div>
+        <div class="cs-item">
+          <strong>2PC: when to use</strong>
+          2-3 participants, same DC, infrequent operations, correctness critical, latency tolerable.
+        </div>
+        <div class="cs-item">
+          <strong>2PC failure mode</strong>
+          Coordinator crashes after phase 1 → all participants stuck holding locks indefinitely.
+        </div>
+        <div class="cs-item">
+          <strong>Compensating actions</strong>
+          Must handle their own failures. Retry + DLQ + manual intervention. Can't be fire-and-forget.
+        </div>
+        <div class="cs-item">
+          <strong>Reconsider service boundaries</strong>
+          If you always need tight cross-service coordination, services might be split wrong.
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+function toggleTheme() {
+  const html = document.documentElement;
+  const btn = document.querySelector('.theme-btn');
+  if (html.dataset.theme === 'dark') {
+    html.dataset.theme = 'light';
+    btn.textContent = '🌙 Dark';
+  } else {
+    html.dataset.theme = 'dark';
+    btn.textContent = '☀️ Light';
+  }
+}
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.08 });
+document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

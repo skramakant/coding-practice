@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 7 — CAP Theorem | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #1e293b; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(248,250,252,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 640px; }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .card p, .card ul { font-size: 0.9rem; color: var(--text2); }
+  .card ul { padding-left: 1.2rem; }
+  .card ul li { margin-bottom: 0.35rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .danger-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 0.4rem; }
+  .success { background: var(--green-bg); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .success-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-purple { background: var(--accent-bg); color: var(--accent2); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  .ecommerce-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin: 1.25rem 0; }
+  .eco-item { border-radius: 10px; padding: 1rem; text-align: center; }
+  .eco-item .eco-name { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.3rem; }
+  .eco-item .eco-type { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; }
+  code { background: var(--bg3); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: var(--green); }
+  @media (max-width: 640px) { nav { padding: 0 1rem; gap: 1rem; } .page { padding: 72px 1rem 3rem; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">Day 7 · CAP Theorem</span>
+  <div class="nav-links">
+    <a href="#myth">The Myth</a>
+    <a href="#concepts">C, A, P Explained</a>
+    <a href="#diagrams">CAP Diagram</a>
+    <a href="#partition">Partition Scenario</a>
+    <a href="#systems">Real Systems</a>
+    <a href="#per-feature">Per-Feature CAP</a>
+    <a href="#pacelc">PACELC</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀ Light</button>
+</nav>
+
+<div class="page">
+  <header class="hero">
+    <div class="hero-tag">Day 7 of 25 · Scaling & Architecture</div>
+    <h1>CAP <span>Theorem</span></h1>
+    <p class="hero-sub">The most misquoted theorem in distributed systems. Understanding it correctly changes how you design every database choice.</p>
+  </header>
+
+  <!-- THE MYTH -->
+  <section id="myth">
+    <h2 class="section-title"><span class="num">1</span> The Famous Misquote</h2>
+    <div class="danger">
+      <div class="danger-label">❌ Wrong — The Common Misquote</div>
+      <p style="font-size:1rem;">"Pick any 2 out of Consistency, Availability, and Partition Tolerance."</p>
+    </div>
+    <div class="success">
+      <div class="success-label">✅ Correct — What Brewer Actually Said</div>
+      <p style="font-size:1rem;"><strong>During a network partition, you must choose between Consistency and Availability. You cannot have both during the partition.</strong></p>
+    </div>
+    <div class="takeaway">
+      <div class="takeaway-label">💡 Key Insight</div>
+      <p>You don't <em>choose</em> P. Network partitions <strong>WILL</strong> happen in any distributed system. Hardware fails. Network cables get cut. The real tradeoff: when a partition happens, do you choose <strong>C or A</strong>?</p>
+    </div>
+  </section>
+
+  <!-- C, A, P EXPLAINED -->
+  <section id="concepts">
+    <h2 class="section-title"><span class="num">2</span> C, A, and P — Precisely Defined</h2>
+    <div class="card-grid">
+      <div class="card" style="border-color:var(--accent);">
+        <h3 style="color:var(--accent2); font-size:1.3rem;">C — Consistency</h3>
+        <p style="margin-bottom:0.75rem;">Every read returns the <strong>most recent write</strong>. All nodes in the cluster agree on the same data at all times.</p>
+        <div style="background:var(--bg3); border-radius:8px; padding:0.85rem; font-size:0.85rem;">
+          <strong style="color:var(--accent2);">If they can't agree?</strong><br>
+          They <span style="color:var(--red); font-weight:700;">REFUSE</span> the request rather than give you wrong information. A node that can't guarantee fresh data says "503, try again" — not lies.
+        </div>
+      </div>
+      <div class="card" style="border-color:var(--green);">
+        <h3 style="color:var(--green); font-size:1.3rem;">A — Availability</h3>
+        <p style="margin-bottom:0.75rem;">Every request gets <strong>a response</strong> (though it may be slightly stale). Every node that is up will answer — without checking with other nodes first.</p>
+        <div style="background:var(--bg3); border-radius:8px; padding:0.85rem; font-size:0.85rem;">
+          <strong style="color:var(--green);">Trade-off:</strong><br>
+          The response may not reflect the very latest write. You might read data that's milliseconds or even seconds old.
+        </div>
+      </div>
+      <div class="card" style="border-color:var(--yellow);">
+        <h3 style="color:var(--yellow); font-size:1.3rem;">P — Partition Tolerance</h3>
+        <p style="margin-bottom:0.75rem;">The system keeps <strong>working</strong> even when network communication between nodes is broken.</p>
+        <div style="background:var(--bg3); border-radius:8px; padding:0.85rem; font-size:0.85rem;">
+          <strong style="color:var(--yellow);">Why you always pick P:</strong><br>
+          No real distributed system can be "CA" (no partition tolerance). If you drop P, you have a single node — not a distributed system.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAP DIAGRAM -->
+  <section id="diagrams">
+    <h2 class="section-title"><span class="num">3</span> CAP Triangle — Real Database Examples</h2>
+    <div class="svg-wrap">
+      <svg width="880" height="520" viewBox="0 0 880 520" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#6366f1"/>
+          </marker>
+        </defs>
+
+        <rect x="0" y="0" width="880" height="520" rx="14" fill="#1a1f2e"/>
+
+        <!-- Triangle -->
+        <!-- C top, A bottom-left, P bottom-right -->
+        <!-- C = 440, 60 -->
+        <!-- A = 140, 400 -->
+        <!-- P = 740, 400 -->
+        <polygon points="440,60 140,400 740,400" fill="none" stroke="#2d3448" stroke-width="2"/>
+
+        <!-- Fill CP region (left side) -->
+        <polygon points="440,60 140,400 440,400" fill="rgba(99,102,241,0.07)" stroke="none"/>
+        <!-- Fill AP region (right side) -->
+        <polygon points="440,60 440,400 740,400" fill="rgba(16,185,129,0.07)" stroke="none"/>
+        <!-- CA center (impossible in distributed) -->
+        <polygon points="440,60 140,400 740,400" fill="none"/>
+
+        <!-- C corner -->
+        <circle cx="440" cy="60" r="44" fill="rgba(99,102,241,0.2)" stroke="#6366f1" stroke-width="2"/>
+        <text x="440" y="55" text-anchor="middle" fill="#818cf8" font-size="20" font-weight="800">C</text>
+        <text x="440" y="74" text-anchor="middle" fill="#818cf8" font-size="11">Consistency</text>
+
+        <!-- A corner -->
+        <circle cx="140" cy="400" r="44" fill="rgba(16,185,129,0.2)" stroke="#10b981" stroke-width="2"/>
+        <text x="140" y="395" text-anchor="middle" fill="#10b981" font-size="20" font-weight="800">A</text>
+        <text x="140" y="414" text-anchor="middle" fill="#10b981" font-size="11">Availability</text>
+
+        <!-- P corner -->
+        <circle cx="740" cy="400" r="44" fill="rgba(245,158,11,0.2)" stroke="#f59e0b" stroke-width="2"/>
+        <text x="740" y="395" text-anchor="middle" fill="#f59e0b" font-size="20" font-weight="800">P</text>
+        <text x="740" y="414" text-anchor="middle" fill="#f59e0b" font-size="11">Partition Tolerance</text>
+
+        <!-- CP region label -->
+        <text x="280" y="250" text-anchor="middle" fill="#818cf8" font-size="13" font-weight="700">CP Systems</text>
+        <text x="280" y="270" text-anchor="middle" fill="#94a3b8" font-size="11">Consistent + Partition tolerant</text>
+        <text x="280" y="288" text-anchor="middle" fill="#94a3b8" font-size="11">Refuses requests when unsure</text>
+
+        <!-- CP databases -->
+        <rect x="190" y="302" width="88" height="28" rx="6" fill="rgba(99,102,241,0.15)" stroke="#6366f1" stroke-width="1"/>
+        <text x="234" y="321" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="600">ZooKeeper</text>
+        <rect x="285" y="302" width="56" height="28" rx="6" fill="rgba(99,102,241,0.15)" stroke="#6366f1" stroke-width="1"/>
+        <text x="313" y="321" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="600">etcd</text>
+        <rect x="200" y="335" width="130" height="28" rx="6" fill="rgba(99,102,241,0.15)" stroke="#6366f1" stroke-width="1"/>
+        <text x="265" y="354" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="600">Google Spanner</text>
+        <rect x="200" y="368" width="110" height="24" rx="6" fill="rgba(99,102,241,0.15)" stroke="#6366f1" stroke-width="1"/>
+        <text x="255" y="385" text-anchor="middle" fill="#818cf8" font-size="10" font-weight="600">Banks / Payments</text>
+
+        <!-- AP region label -->
+        <text x="600" y="250" text-anchor="middle" fill="#10b981" font-size="13" font-weight="700">AP Systems</text>
+        <text x="600" y="270" text-anchor="middle" fill="#94a3b8" font-size="11">Available + Partition tolerant</text>
+        <text x="600" y="288" text-anchor="middle" fill="#94a3b8" font-size="11">Serves stale data during partition</text>
+
+        <!-- AP databases -->
+        <rect x="510" y="302" width="88" height="28" rx="6" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1"/>
+        <text x="554" y="321" text-anchor="middle" fill="#10b981" font-size="11" font-weight="600">Cassandra</text>
+        <rect x="604" y="302" width="100" height="28" rx="6" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1"/>
+        <text x="654" y="321" text-anchor="middle" fill="#10b981" font-size="11" font-weight="600">DynamoDB</text>
+        <rect x="540" y="335" width="55" height="28" rx="6" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1"/>
+        <text x="567" y="354" text-anchor="middle" fill="#10b981" font-size="11" font-weight="600">DNS</text>
+        <rect x="600" y="335" width="80" height="28" rx="6" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1"/>
+        <text x="640" y="354" text-anchor="middle" fill="#10b981" font-size="11" font-weight="600">CouchDB</text>
+
+        <!-- CA (not possible in distributed) -->
+        <text x="440" y="235" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="700">CA = Not Possible</text>
+        <text x="440" y="252" text-anchor="middle" fill="#94a3b8" font-size="10">in a distributed system</text>
+        <text x="440" y="266" text-anchor="middle" fill="#94a3b8" font-size="10">(dropping P = single node)</text>
+
+        <!-- Real trade-off label bottom -->
+        <rect x="310" y="440" width="260" height="55" rx="10" fill="rgba(245,158,11,0.1)" stroke="#f59e0b" stroke-width="1"/>
+        <text x="440" y="462" text-anchor="middle" fill="#f59e0b" font-size="12" font-weight="700">The Real Tradeoff</text>
+        <text x="440" y="480" text-anchor="middle" fill="#e2e8f0" font-size="11">During a partition: CP refuses</text>
+        <text x="440" y="494" text-anchor="middle" fill="#e2e8f0" font-size="11">requests. AP serves stale data.</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- PARTITION SCENARIO -->
+  <section id="partition">
+    <h2 class="section-title"><span class="num">4</span> The Mumbai–Singapore Partition Scenario</h2>
+    <div class="svg-wrap">
+      <svg width="880" height="360" viewBox="0 0 880 360" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;">
+        <defs>
+          <marker id="arr2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#6366f1"/>
+          </marker>
+          <marker id="arr-r" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#ef4444"/>
+          </marker>
+          <marker id="arr-y" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#f59e0b"/>
+          </marker>
+        </defs>
+
+        <rect x="0" y="0" width="880" height="360" rx="14" fill="#1a1f2e"/>
+
+        <!-- Step 1: Normal state -->
+        <text x="145" y="30" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="700">BEFORE PARTITION</text>
+        <rect x="30" y="44" width="230" height="100" rx="10" fill="#242938" stroke="#2d3448"/>
+        <text x="145" y="70" text-anchor="middle" fill="#818cf8" font-size="13" font-weight="700">Node A — Mumbai</text>
+        <text x="145" y="92" text-anchor="middle" fill="#10b981" font-size="12">balance = ₹3000</text>
+        <rect x="55" y="104" width="180" height="28" rx="6" fill="rgba(16,185,129,0.12)" stroke="#10b981" stroke-width="1"/>
+        <text x="145" y="123" text-anchor="middle" fill="#10b981" font-size="11">WRITE: balance → ₹5000</text>
+        <!-- sync arrow -->
+        <text x="295" y="105" fill="#94a3b8" font-size="10" text-anchor="middle">sync</text>
+        <line x1="265" y1="95" x2="345" y2="95" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+        <rect x="350" y="44" width="190" height="100" rx="10" fill="#242938" stroke="#2d3448"/>
+        <text x="445" y="70" text-anchor="middle" fill="#818cf8" font-size="13" font-weight="700">Node B — Singapore</text>
+        <text x="445" y="92" text-anchor="middle" fill="#10b981" font-size="12">balance = ₹3000</text>
+        <text x="445" y="130" text-anchor="middle" fill="#94a3b8" font-size="10">Gets updated → ₹5000 ✓</text>
+
+        <!-- Step 2: During partition -->
+        <line x1="15" y1="170" x2="870" y2="170" stroke="#2d3448" stroke-width="1" stroke-dasharray="4,4"/>
+        <text x="440" y="165" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="700">PARTITION OCCURS ↓</text>
+
+        <text x="145" y="192" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700">DURING PARTITION</text>
+
+        <!-- Node A with new write -->
+        <rect x="30" y="200" width="200" height="90" rx="10" fill="#242938" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="130" y="222" text-anchor="middle" fill="#818cf8" font-size="12" font-weight="700">Node A — Mumbai</text>
+        <text x="130" y="242" text-anchor="middle" fill="#10b981" font-size="11">balance updated → ₹5000</text>
+        <rect x="48" y="256" width="164" height="26" rx="5" fill="rgba(16,185,129,0.12)" stroke="#10b981" stroke-width="1"/>
+        <text x="130" y="274" text-anchor="middle" fill="#10b981" font-size="10">Accepts the WRITE ✓</text>
+
+        <!-- Network broken -->
+        <rect x="248" y="215" width="100" height="60" rx="8" fill="rgba(239,68,68,0.12)" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <text x="298" y="242" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="700">🔌</text>
+        <text x="298" y="258" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="700">NETWORK</text>
+        <text x="298" y="272" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="700">BROKEN</text>
+
+        <!-- Node B stale -->
+        <rect x="364" y="200" width="200" height="90" rx="10" fill="#242938" stroke="#2d3448"/>
+        <text x="464" y="222" text-anchor="middle" fill="#818cf8" font-size="12" font-weight="700">Node B — Singapore</text>
+        <text x="464" y="242" text-anchor="middle" fill="#f59e0b" font-size="11">balance still = ₹3000 (stale)</text>
+        <text x="464" y="260" text-anchor="middle" fill="#94a3b8" font-size="10">Can't reach Node A</text>
+        <text x="464" y="275" text-anchor="middle" fill="#94a3b8" font-size="10">What does it do?</text>
+
+        <!-- CP outcome -->
+        <rect x="580" y="195" width="130" height="105" rx="10" fill="rgba(99,102,241,0.12)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="645" y="218" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700">CP Choice</text>
+        <text x="645" y="236" text-anchor="middle" fill="#94a3b8" font-size="10">Node B REFUSES</text>
+        <text x="645" y="251" text-anchor="middle" fill="#94a3b8" font-size="10">to answer</text>
+        <rect x="595" y="259" width="100" height="26" rx="5" fill="rgba(239,68,68,0.12)" stroke="#ef4444"/>
+        <text x="645" y="277" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="700">503 Service Error</text>
+        <text x="645" y="293" text-anchor="middle" fill="#94a3b8" font-size="9">Correct &gt; wrong answer</text>
+
+        <!-- AP outcome -->
+        <rect x="725" y="195" width="130" height="105" rx="10" fill="rgba(16,185,129,0.12)" stroke="#10b981" stroke-width="1.5"/>
+        <text x="790" y="218" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700">AP Choice</text>
+        <text x="790" y="236" text-anchor="middle" fill="#94a3b8" font-size="10">Node B SERVES</text>
+        <text x="790" y="251" text-anchor="middle" fill="#94a3b8" font-size="10">old balance</text>
+        <rect x="740" y="259" width="100" height="26" rx="5" fill="rgba(16,185,129,0.12)" stroke="#10b981"/>
+        <text x="790" y="277" text-anchor="middle" fill="#10b981" font-size="10" font-weight="700">₹3000 (stale)</text>
+        <text x="790" y="293" text-anchor="middle" fill="#94a3b8" font-size="9">Available but stale</text>
+
+        <!-- Arrow from Node B question to choices -->
+        <line x1="564" y1="245" x2="580" y2="245" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr2)"/>
+        <line x1="564" y1="245" x2="725" y2="245" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+        <!-- Bottom note -->
+        <text x="440" y="330" text-anchor="middle" fill="#94a3b8" font-size="11">For a bank: CP is correct. Refusing a transaction &gt; showing wrong balance.</text>
+        <text x="440" y="348" text-anchor="middle" fill="#94a3b8" font-size="11">For DNS: AP is fine. Serving a cached IP for a few minutes is totally acceptable.</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- REAL SYSTEMS -->
+  <section id="systems">
+    <h2 class="section-title"><span class="num">5</span> Real Systems — CP vs AP</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>System</th>
+            <th>Type</th>
+            <th>Behavior During Partition</th>
+            <th>Use Case</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Google Spanner</strong></td>
+            <td><span class="badge badge-purple">CP</span></td>
+            <td>Uses atomic clocks + GPS for globally consistent transactions. Refuses if can't confirm freshness.</td>
+            <td>Financial data, global inventory</td>
+          </tr>
+          <tr>
+            <td><strong>ZooKeeper</strong></td>
+            <td><span class="badge badge-purple">CP</span></td>
+            <td>Refuses reads if not the current leader. Used for distributed coordination and leader election.</td>
+            <td>Config management, service discovery</td>
+          </tr>
+          <tr>
+            <td><strong>etcd</strong></td>
+            <td><span class="badge badge-purple">CP</span></td>
+            <td>Raft consensus — won't serve stale reads. Used in Kubernetes for cluster state.</td>
+            <td>K8s state store, distributed locks</td>
+          </tr>
+          <tr>
+            <td><strong>Cassandra</strong></td>
+            <td><span class="badge badge-green">AP</span></td>
+            <td>Last-write-wins conflict resolution. Every node answers. Tunable consistency levels.</td>
+            <td>Time-series, IoT, high-write apps</td>
+          </tr>
+          <tr>
+            <td><strong>DynamoDB (default)</strong></td>
+            <td><span class="badge badge-green">AP</span></td>
+            <td>Eventual consistency by default. Strong consistency available per-request at extra cost.</td>
+            <td>Shopping carts, session data, user prefs</td>
+          </tr>
+          <tr>
+            <td><strong>DNS</strong></td>
+            <td><span class="badge badge-green">AP</span></td>
+            <td>Serves cached IP for TTL duration even if the record was updated. Stale for minutes — that's fine.</td>
+            <td>Domain resolution everywhere</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- PER-FEATURE CAP -->
+  <section id="per-feature">
+    <h2 class="section-title"><span class="num">6</span> CAP is Per-Feature, Not Per-System</h2>
+    <p style="color:var(--text2); margin-bottom:1.25rem;">The same e-commerce platform needs <em>different</em> CAP trade-offs for different features. This is the most practical insight from CAP theorem.</p>
+    <div class="ecommerce-grid">
+      <div class="eco-item" style="background:var(--green-bg); border:1px solid var(--green);">
+        <div class="eco-name">📦 Product Catalogue</div>
+        <div class="eco-type" style="color:var(--green);">AP</div>
+        <p style="font-size:0.8rem; color:var(--text2); margin-top:0.4rem;">Slightly stale price? Fine. High availability matters more.</p>
+      </div>
+      <div class="eco-item" style="background:var(--red-bg); border:1px solid var(--red);">
+        <div class="eco-name">📊 Last Item Inventory</div>
+        <div class="eco-type" style="color:var(--red);">CP</div>
+        <p style="font-size:0.8rem; color:var(--text2); margin-top:0.4rem;">Overselling = disaster. Refuse rather than oversell.</p>
+      </div>
+      <div class="eco-item" style="background:var(--red-bg); border:1px solid var(--red);">
+        <div class="eco-name">💳 Payment</div>
+        <div class="eco-type" style="color:var(--red);">CP</div>
+        <p style="font-size:0.8rem; color:var(--text2); margin-top:0.4rem;">Double charge or wrong balance = catastrophic.</p>
+      </div>
+      <div class="eco-item" style="background:var(--green-bg); border:1px solid var(--green);">
+        <div class="eco-name">⭐ User Reviews</div>
+        <div class="eco-type" style="color:var(--green);">AP</div>
+        <p style="font-size:0.8rem; color:var(--text2); margin-top:0.4rem;">Review showing 1 min later? Nobody cares.</p>
+      </div>
+      <div class="eco-item" style="background:var(--green-bg); border:1px solid var(--green);">
+        <div class="eco-name">🛒 Shopping Cart</div>
+        <div class="eco-type" style="color:var(--green);">AP + conflict resolution</div>
+        <p style="font-size:0.8rem; color:var(--text2); margin-top:0.4rem;">Multi-device add? Merge both. Availability matters.</p>
+      </div>
+    </div>
+    <div class="takeaway">
+      <div class="takeaway-label">🎯 Interview Answer</div>
+      <p>"It depends on the feature. Let me walk through which parts of the system need strong consistency and which can tolerate eventual consistency." — This is the answer interviewers want to hear.</p>
+    </div>
+  </section>
+
+  <!-- PACELC -->
+  <section id="pacelc">
+    <h2 class="section-title"><span class="num">7</span> PACELC — The Full Picture</h2>
+    <p style="color:var(--text2); margin-bottom:1.25rem;">CAP only describes behavior <em>during failures</em>. PACELC extends it to include normal operation too.</p>
+    <div class="card" style="margin-bottom:1.5rem;">
+      <div style="font-family:monospace; font-size:1.1rem; text-align:center; padding:1rem; background:var(--bg3); border-radius:8px; letter-spacing:0.05em;">
+        <span style="color:var(--yellow);">P</span>artition →
+        <span style="color:var(--accent2);">A</span>vailability or
+        <span style="color:var(--red);">C</span>onsistency
+        &nbsp;&nbsp;<span style="color:var(--text2);">|</span>&nbsp;&nbsp;
+        <span style="color:var(--green);">E</span>lse →
+        <span style="color:var(--cyan);">L</span>atency or
+        <span style="color:var(--red);">C</span>onsistency
+      </div>
+    </div>
+    <div class="card-grid">
+      <div class="card">
+        <h3 style="color:var(--yellow);">During Partition (CAP part)</h3>
+        <p>Choose: <strong>C</strong> (refuse bad data) or <strong>A</strong> (serve stale data). This is what CAP covers — the failure mode.</p>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--green);">Normal Operation (the E part)</h3>
+        <p>Choose: <strong>Low Latency</strong> (async replication, fast writes) or <strong>Consistency</strong> (synchronous replication, slower but always fresh).</p>
+      </div>
+    </div>
+    <div class="table-wrap" style="margin-top:1.5rem;">
+      <table>
+        <thead>
+          <tr><th>Replication Strategy</th><th>Latency</th><th>Consistency</th><th>Data Loss Risk</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Synchronous</strong></td>
+            <td><span class="badge badge-yellow">Slower</span></td>
+            <td><span class="badge badge-green">Strong</span></td>
+            <td><span class="badge badge-green">None</span></td>
+          </tr>
+          <tr>
+            <td><strong>Asynchronous</strong></td>
+            <td><span class="badge badge-green">Faster</span></td>
+            <td><span class="badge badge-yellow">Eventual</span></td>
+            <td><span class="badge badge-red">Possible</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <h2 class="section-title"><span class="num">8</span> Quick Reference</h2>
+    <div class="cheatsheet">
+      <div class="cs-title">📋 CAP Theorem — Cheat Sheet</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>The Real Statement</strong>
+          During a network partition, choose C or A. You can't have both.
+        </div>
+        <div class="cs-item">
+          <strong>Why you always pick P</strong>
+          Network partitions WILL happen. You can't opt out of distributed system failures.
+        </div>
+        <div class="cs-item">
+          <strong>C = Consistency</strong>
+          Every read gets the latest write. Refuses rather than giving stale data.
+        </div>
+        <div class="cs-item">
+          <strong>A = Availability</strong>
+          Every node answers. May return slightly stale data. Never a hard error.
+        </div>
+        <div class="cs-item">
+          <strong>CP systems</strong>
+          Banks, ZooKeeper, etcd, Google Spanner. Refusing &gt; wrong data.
+        </div>
+        <div class="cs-item">
+          <strong>AP systems</strong>
+          Cassandra, DynamoDB, DNS. Stale data is acceptable.
+        </div>
+        <div class="cs-item">
+          <strong>CAP is per-feature</strong>
+          Same app: catalogue=AP, inventory=CP, payment=CP, reviews=AP.
+        </div>
+        <div class="cs-item">
+          <strong>Interview answer</strong>
+          "Depends on the feature." Walk through what needs strong vs eventual consistency.
+        </div>
+        <div class="cs-item">
+          <strong>PACELC adds</strong>
+          Normal ops: choose Latency (async) or Consistency (sync). CAP = failure mode only.
+        </div>
+        <div class="cs-item">
+          <strong>Mumbai-Singapore</strong>
+          Write goes to Mumbai. Network breaks. Singapore: CP=refuses, AP=serves ₹3000.
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const btn = document.getElementById('themeBtn');
+    if (html.getAttribute('data-theme') === 'dark') {
+      html.setAttribute('data-theme', 'light');
+      btn.textContent = '🌙 Dark';
+    } else {
+      html.setAttribute('data-theme', 'dark');
+      btn.textContent = '☀ Light';
+    }
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

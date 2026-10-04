@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 23 — Idempotency + Data Locality | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #1e293b; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(248,250,252,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 640px; }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .card p, .card ul { font-size: 0.9rem; color: var(--text2); }
+  .card ul { padding-left: 1.2rem; }
+  .card ul li { margin-bottom: 0.35rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .danger-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 0.4rem; }
+  .success { background: var(--green-bg); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .success-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-purple { background: var(--accent-bg); color: var(--accent2); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  .anecdote { background: var(--bg2); border-left: 4px solid var(--yellow); border-radius: 0 12px 12px 0; padding: 1.25rem 1.5rem; margin: 0 0 1.5rem; }
+  code { background: var(--bg3); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: var(--green); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media(max-width:640px){ .two-col { grid-template-columns: 1fr; } }
+  .rule-item { display: flex; gap: 1rem; padding: 0.85rem 1rem; background: var(--bg3); border-radius: 10px; margin-bottom: 0.6rem; align-items: flex-start; }
+  .rule-num { width: 26px; height: 26px; background: var(--accent); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; flex-shrink: 0; }
+  .rule-text { font-size: 0.9rem; }
+  .rule-text strong { color: var(--accent2); }
+  .finale-banner { background: linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(16,185,129,0.1) 100%); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-bottom: 3rem; }
+  .series-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.5rem; margin-top: 1.25rem; }
+  .series-item { background: var(--bg3); border-radius: 8px; padding: 0.6rem 0.85rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem; }
+  .series-num { width: 22px; height: 22px; background: var(--accent-bg); color: var(--accent); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<nav>
+  <span class="nav-brand">Day 23 · Idempotency + Data Locality</span>
+  <div class="nav-links">
+    <a href="#intro">Overview</a>
+    <a href="#idempotency">Idempotency</a>
+    <a href="#idem-diagram">Flow Diagram</a>
+    <a href="#implement">Implementation</a>
+    <a href="#locality">Data Locality</a>
+    <a href="#locality-diagram">Locality Diagram</a>
+    <a href="#combined">Combined Rules</a>
+    <a href="#finale">Series Finale</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀️ Light</button>
+</nav>
+
+<div class="page">
+  <div class="hero">
+    <div class="hero-tag">Day 23 of 25 · Series Finale · Scaling & Architecture</div>
+    <h1>Idempotency + <span>Data Locality</span></h1>
+    <p class="hero-sub">"Two ideas that look small on a whiteboard and dominate real incident reports. Miss either one and you get duplicate charges, thundering herds, and multi-second latencies."</p>
+  </div>
+
+  <!-- INTRO -->
+  <section id="intro">
+    <div class="section-title"><div class="num">01</div>Why These Two?</div>
+    <div class="two-col">
+      <div class="card" style="border-left:3px solid var(--accent);">
+        <h3 style="color:var(--accent2);">Idempotency</h3>
+        <p>Networks fail. Clients retry. Message queues deliver at-least-once. Load balancers replay requests. Without idempotency, <strong>every retry is a potential double charge, double email, double inventory decrement.</strong></p>
+        <div style="margin-top:0.75rem;font-size:0.85rem;color:var(--text);">Turns at-least-once delivery into effectively-once behavior — without expensive exactly-once infrastructure.</div>
+      </div>
+      <div class="card" style="border-left:3px solid var(--green);">
+        <h3 style="color:var(--green);">Data Locality</h3>
+        <p>The fastest network call is the one you <strong>never make</strong>. Every cross-node, cross-AZ, or cross-region hop adds latency, failure modes, and coordination cost.</p>
+        <div style="margin-top:0.75rem;font-size:0.85rem;color:var(--text);">Data locality = practice of placing data where the computation (or user) already is.</div>
+      </div>
+    </div>
+    <div class="danger" style="margin-top:1rem;">
+      <div class="danger-label">Production Reality</div>
+      <p>Neither idea is glamorous. Both are visible in almost every serious post-mortem involving money, inventory, or multi-region traffic. They look small on a whiteboard and dominate real incident reports.</p>
+    </div>
+  </section>
+
+  <!-- IDEMPOTENCY -->
+  <section id="idempotency">
+    <div class="section-title"><div class="num">02</div>Idempotency — Making Retries Safe</div>
+    <div class="takeaway">
+      <div class="takeaway-label">Definition</div>
+      <p>An operation is <strong>idempotent</strong> if performing it multiple times produces the same result as performing it once. <code>SET balance = 500</code> is idempotent. <code>INCREMENT balance BY 10</code> is not.</p>
+    </div>
+
+    <div class="card-grid" style="margin-top:1rem;">
+      <div class="card">
+        <h3 style="color:var(--green);">✅ Natural Idempotent Operations</h3>
+        <ul>
+          <li><code>PUT /resource</code> with full state representation</li>
+          <li><code>SET balance = 500</code> (absolute assignment)</li>
+          <li><code>INSERT ... ON CONFLICT DO NOTHING</code></li>
+          <li><code>INSERT ... ON CONFLICT DO UPDATE</code></li>
+          <li>Idempotency key lookup + return stored result</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--red);">❌ Dangerous Non-Idempotent Operations</h3>
+        <ul>
+          <li><code>DEBIT account BY 50</code> (relative change)</li>
+          <li><code>INCREMENT inventory by 1</code> without unique constraint</li>
+          <li><code>APPEND item to list</code> without deduplication</li>
+          <li><code>POST /charges</code> without idempotency key</li>
+          <li>Send email without tracking send status</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="warn" style="margin-top:1rem;">
+      <div class="warn-label">⚠ Exactly-Once is a Myth at Scale</div>
+      <p>Exactly-once semantics require distributed transactions or heavy coordinator protocols. The overhead is almost never worth it. The correct pattern is: <strong>at-least-once delivery + idempotent consumers</strong>. This gives you effectively-once behavior at a fraction of the cost.</p>
+    </div>
+  </section>
+
+  <!-- IDEMPOTENCY FLOW DIAGRAM -->
+  <section id="idem-diagram">
+    <div class="section-title"><div class="num">03</div>Idempotency Key Flow</div>
+    <div class="svg-wrap">
+      <svg width="900" height="420" viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;">
+        <defs>
+          <marker id="arrowBlue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#6366f1"/>
+          </marker>
+          <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#10b981"/>
+          </marker>
+          <marker id="arrowRed" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#ef4444"/>
+          </marker>
+          <marker id="arrowYellow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#f59e0b"/>
+          </marker>
+        </defs>
+
+        <text x="450" y="22" text-anchor="middle" fill="#e2e8f0" font-size="14" font-weight="700" font-family="sans-serif">Idempotency Key: First Request vs Duplicate Retry</text>
+
+        <!-- LEFT: First Request Flow -->
+        <rect x="20" y="35" width="400" height="370" rx="12" fill="#1a1f2e" stroke="#10b981" stroke-width="1.5"/>
+        <rect x="20" y="35" width="400" height="36" rx="12 12 0 0" fill="rgba(16,185,129,0.15)"/>
+        <text x="220" y="58" text-anchor="middle" fill="#10b981" font-size="12" font-weight="700" font-family="sans-serif">✓ FIRST REQUEST (New Key)</text>
+
+        <!-- Client -->
+        <rect x="80" y="83" width="120" height="36" rx="8" fill="#1a1f2e" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="140" y="100" text-anchor="middle" fill="#818cf8" font-size="10" font-weight="600" font-family="sans-serif">Client</text>
+        <text x="140" y="113" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">key: "uuid-abc"</text>
+
+        <!-- Arrow down -->
+        <line x1="140" y1="119" x2="140" y2="145" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+        <text x="155" y="136" fill="#94a3b8" font-size="9" font-family="sans-serif">POST /charge</text>
+        <text x="155" y="148" fill="#6366f1" font-size="9" font-family="sans-serif">Idempotency-Key: uuid-abc</text>
+
+        <!-- Server -->
+        <rect x="80" y="153" width="120" height="36" rx="8" fill="#1a1f2e" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="140" y="170" text-anchor="middle" fill="#818cf8" font-size="10" font-weight="600" font-family="sans-serif">Server</text>
+        <text x="140" y="183" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">receives request</text>
+
+        <!-- Arrow to idempotency store -->
+        <line x1="200" y1="171" x2="250" y2="171" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+        <text x="225" y="165" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="sans-serif">check key</text>
+
+        <!-- Idempotency store -->
+        <rect x="250" y="155" width="130" height="34" rx="8" fill="rgba(6,182,212,0.12)" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="315" y="172" text-anchor="middle" fill="#06b6d4" font-size="10" font-weight="600" font-family="sans-serif">Idempotency</text>
+        <text x="315" y="183" text-anchor="middle" fill="#06b6d4" font-size="10" font-family="sans-serif">Store</text>
+
+        <!-- Store response -->
+        <line x1="250" y1="192" x2="200" y2="205" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+        <text x="222" y="198" text-anchor="middle" fill="#10b981" font-size="8" font-family="sans-serif">NOT FOUND</text>
+
+        <!-- Execute -->
+        <rect x="80" y="213" width="120" height="36" rx="8" fill="rgba(16,185,129,0.12)" stroke="#10b981" stroke-width="1.5"/>
+        <text x="140" y="230" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600" font-family="sans-serif">Execute Handler</text>
+        <text x="140" y="243" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">process charge</text>
+
+        <!-- Arrow to store -->
+        <line x1="200" y1="231" x2="250" y2="220" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+        <text x="228" y="218" text-anchor="middle" fill="#10b981" font-size="8" font-family="sans-serif">STORE result</text>
+
+        <line x1="140" y1="249" x2="140" y2="275" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+
+        <!-- Response -->
+        <rect x="80" y="275" width="120" height="36" rx="8" fill="rgba(16,185,129,0.12)" stroke="#10b981" stroke-width="1.5"/>
+        <text x="140" y="292" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600" font-family="sans-serif">200 OK</text>
+        <text x="140" y="305" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">{ charged: true }</text>
+
+        <!-- TTL note -->
+        <rect x="50" y="325" width="340" height="65" rx="6" fill="rgba(16,185,129,0.08)" stroke="#10b981" stroke-width="1"/>
+        <text x="220" y="343" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600" font-family="sans-serif">✓ Result stored in idempotency store</text>
+        <text x="220" y="358" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">Key: "uuid-abc" → result: {charged: true}</text>
+        <text x="220" y="373" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">TTL: 24–72 hours · DB unique index as safety net</text>
+
+        <!-- RIGHT: Duplicate Request Flow -->
+        <rect x="480" y="35" width="400" height="370" rx="12" fill="#1a1f2e" stroke="#f59e0b" stroke-width="1.5"/>
+        <rect x="480" y="35" width="400" height="36" rx="12 12 0 0" fill="rgba(245,158,11,0.15)"/>
+        <text x="680" y="58" text-anchor="middle" fill="#f59e0b" font-size="12" font-weight="700" font-family="sans-serif">⟳ DUPLICATE REQUEST (Same Key)</text>
+
+        <!-- Client retry -->
+        <rect x="540" y="83" width="120" height="36" rx="8" fill="#1a1f2e" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="600" y="100" text-anchor="middle" fill="#818cf8" font-size="10" font-weight="600" font-family="sans-serif">Client (Retry)</text>
+        <text x="600" y="113" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">key: "uuid-abc" (SAME)</text>
+
+        <!-- Arrow down -->
+        <line x1="600" y1="119" x2="600" y2="145" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+        <text x="615" y="136" fill="#94a3b8" font-size="9" font-family="sans-serif">POST /charge (retry)</text>
+        <text x="615" y="148" fill="#6366f1" font-size="9" font-family="sans-serif">Idempotency-Key: uuid-abc</text>
+
+        <!-- Server retry -->
+        <rect x="540" y="153" width="120" height="36" rx="8" fill="#1a1f2e" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="600" y="170" text-anchor="middle" fill="#818cf8" font-size="10" font-weight="600" font-family="sans-serif">Server</text>
+        <text x="600" y="183" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">receives retry</text>
+
+        <!-- Arrow to store -->
+        <line x1="660" y1="171" x2="710" y2="171" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+        <text x="685" y="165" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="sans-serif">check key</text>
+
+        <!-- Idempotency store hit -->
+        <rect x="710" y="155" width="130" height="34" rx="8" fill="rgba(245,158,11,0.15)" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="775" y="172" text-anchor="middle" fill="#f59e0b" font-size="10" font-weight="600" font-family="sans-serif">Idempotency</text>
+        <text x="775" y="183" text-anchor="middle" fill="#f59e0b" font-size="10" font-family="sans-serif">Store HIT!</text>
+
+        <!-- Store response -->
+        <line x1="710" y1="192" x2="660" y2="205" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arrowYellow)"/>
+        <text x="685" y="202" text-anchor="middle" fill="#f59e0b" font-size="8" font-family="sans-serif">FOUND → result</text>
+
+        <!-- Skip execution -->
+        <rect x="540" y="213" width="120" height="36" rx="8" fill="rgba(239,68,68,0.1)" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="600" y="230" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="600" font-family="sans-serif">❌ SKIP Execution</text>
+        <text x="600" y="243" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">No double charge</text>
+
+        <line x1="600" y1="249" x2="600" y2="275" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arrowYellow)"/>
+
+        <!-- Response same -->
+        <rect x="540" y="275" width="120" height="36" rx="8" fill="rgba(245,158,11,0.12)" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="600" y="292" text-anchor="middle" fill="#f59e0b" font-size="10" font-weight="600" font-family="sans-serif">200 OK (cached)</text>
+        <text x="600" y="305" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">{ charged: true }</text>
+
+        <!-- Outcome note -->
+        <rect x="510" y="325" width="340" height="65" rx="6" fill="rgba(245,158,11,0.08)" stroke="#f59e0b" stroke-width="1"/>
+        <text x="680" y="343" text-anchor="middle" fill="#f59e0b" font-size="10" font-weight="600" font-family="sans-serif">✓ Same response, no duplicate side-effect</text>
+        <text x="680" y="358" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">Client can retry aggressively without fear</text>
+        <text x="680" y="373" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">At-least-once delivery → effectively-once behavior</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- IMPLEMENTATION -->
+  <section id="implement">
+    <div class="section-title"><div class="num">04</div>How to Implement Idempotency</div>
+    <div class="rule-item">
+      <div class="rule-num">1</div>
+      <div class="rule-text"><strong>Idempotency keys.</strong> Client generates a unique UUID for each logical operation and sends it with the request. Server stores key + result. On duplicate key, return the stored result instead of re-executing the handler.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">2</div>
+      <div class="rule-text"><strong>Use naturally idempotent operations.</strong> <code>PUT /resource</code> with full state. <code>SET balance = 500</code>. <code>INSERT ... ON CONFLICT DO NOTHING / DO UPDATE</code>. Avoid "increment by 1" or "append this item" without a key or unique constraint.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">3</div>
+      <div class="rule-text"><strong>Database constraints as last line of defense.</strong> Unique indexes on <code>(user_id, idempotency_key)</code> or on business identifiers. Even if application logic forgets, the database rejects the duplicate.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">4</div>
+      <div class="rule-text"><strong>At-least-once + idempotent &gt; exactly-once.</strong> Exactly-once requires distributed transactions or heavy coordinator protocols. Almost always prefer at-least-once delivery with idempotent consumers — same outcome at a fraction of the complexity.</div>
+    </div>
+
+    <div class="card" style="margin-top:1rem;">
+      <h3 style="color:var(--accent2);margin-bottom:1rem;">Production Checklist</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0.6rem;">
+        <div style="background:var(--bg3);border-radius:8px;padding:0.75rem;display:flex;gap:0.5rem;align-items:flex-start;">
+          <span style="color:var(--green);font-size:1.1rem;">✓</span>
+          <span style="font-size:0.88rem;">Every payment, order creation, email send, and inventory mutation has an idempotency key or unique constraint</span>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:0.75rem;display:flex;gap:0.5rem;align-items:flex-start;">
+          <span style="color:var(--green);font-size:1.1rem;">✓</span>
+          <span style="font-size:0.88rem;">Retries from clients, queues, and internal services all carry the same key — never generate a new key on retry</span>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:0.75rem;display:flex;gap:0.5rem;align-items:flex-start;">
+          <span style="color:var(--green);font-size:1.1rem;">✓</span>
+          <span style="font-size:0.88rem;">Keys have TTL (e.g., 24–72 hours) so the idempotency store doesn't grow forever</span>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:0.75rem;display:flex;gap:0.5rem;align-items:flex-start;">
+          <span style="color:var(--green);font-size:1.1rem;">✓</span>
+          <span style="font-size:0.88rem;">Monitor "idempotency hit rate" — a sudden drop often means keys are not being propagated correctly</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATA LOCALITY -->
+  <section id="locality">
+    <div class="section-title"><div class="num">05</div>Data Locality — Making the Common Path Fast</div>
+    <div class="takeaway">
+      <div class="takeaway-label">Core Principle</div>
+      <p>The fastest network call is the one you <strong>never make</strong>. Every cross-node, cross-AZ, or cross-region hop adds latency, failure modes, and coordination cost. Data locality = placing data where the computation or user already is.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin-top:1rem;">
+      <div class="card" style="border-top:3px solid var(--accent);">
+        <h3 style="color:var(--accent2);">1. Compute Close to Data</h3>
+        <p>Run analytics jobs on the same machines that hold the data (Spark, BigQuery). Avoid "pull everything to a central service then process" — the network transfer dominates.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--cyan);">
+        <h3 style="color:var(--cyan);">2. Data Close to Users</h3>
+        <p>Geo-replicate or cache popular data in the region where users are. CDN for static assets. Regional read replicas. Edge caches. Intercontinental round trips are 100–300ms per hop.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--green);">
+        <h3 style="color:var(--green);">3. Co-locate Related Data</h3>
+        <p>In a sharded system, put a user's orders + profile + preferences on the <strong>same shard</strong> (shard by user_id). Cross-shard joins and transactions become rare instead of routine.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--yellow);">
+        <h3 style="color:var(--yellow);">4. Session/Request Locality</h3>
+        <p>Sticky sessions or consistent hashing so repeated requests from the same user hit the same cache or replica with data already warm. Avoids cold-start penalty on every request.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOCALITY DIAGRAM -->
+  <section id="locality-diagram">
+    <div class="section-title"><div class="num">06</div>Data Locality: Co-location vs Remote</div>
+    <div class="svg-wrap">
+      <svg width="900" height="400" viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;">
+        <defs>
+          <marker id="arrowR" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#ef4444"/>
+          </marker>
+          <marker id="arrowG" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#10b981"/>
+          </marker>
+        </defs>
+
+        <text x="450" y="22" text-anchor="middle" fill="#e2e8f0" font-size="14" font-weight="700" font-family="sans-serif">Data Locality: Sharding Strategy Comparison</text>
+
+        <!-- Bad: Random sharding -->
+        <rect x="20" y="35" width="400" height="350" rx="12" fill="#1a1f2e" stroke="#ef4444" stroke-width="1.5"/>
+        <rect x="20" y="35" width="400" height="36" rx="12 12 0 0" fill="rgba(239,68,68,0.15)"/>
+        <text x="220" y="58" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="700" font-family="sans-serif">❌ Poor Locality (Random Shard Key)</text>
+
+        <!-- User request -->
+        <rect x="155" y="82" width="130" height="36" rx="8" fill="rgba(99,102,241,0.2)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="220" y="99" text-anchor="middle" fill="#818cf8" font-size="10" font-weight="600" font-family="sans-serif">User Request</text>
+        <text x="220" y="112" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">Load user profile + orders</text>
+
+        <!-- Three shards with data scattered -->
+        <rect x="40" y="148" width="100" height="60" rx="8" fill="#1a1f2e" stroke="#2d3448" stroke-width="1"/>
+        <text x="90" y="168" text-anchor="middle" fill="#94a3b8" font-size="9" font-weight="600" font-family="sans-serif">Shard A</text>
+        <text x="90" y="183" text-anchor="middle" fill="#06b6d4" font-size="9" font-family="sans-serif">Profile data</text>
+        <text x="90" y="197" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="sans-serif">(user 123)</text>
+
+        <rect x="160" y="148" width="100" height="60" rx="8" fill="#1a1f2e" stroke="#2d3448" stroke-width="1"/>
+        <text x="210" y="168" text-anchor="middle" fill="#94a3b8" font-size="9" font-weight="600" font-family="sans-serif">Shard B</text>
+        <text x="210" y="183" text-anchor="middle" fill="#f59e0b" font-size="9" font-family="sans-serif">Orders data</text>
+        <text x="210" y="197" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="sans-serif">(user 123)</text>
+
+        <rect x="280" y="148" width="100" height="60" rx="8" fill="#1a1f2e" stroke="#2d3448" stroke-width="1"/>
+        <text x="330" y="168" text-anchor="middle" fill="#94a3b8" font-size="9" font-weight="600" font-family="sans-serif">Shard C</text>
+        <text x="330" y="183" text-anchor="middle" fill="#10b981" font-size="9" font-family="sans-serif">Prefs data</text>
+        <text x="330" y="197" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="sans-serif">(user 123)</text>
+
+        <!-- Lines from request to all shards -->
+        <line x1="195" y1="118" x2="90" y2="148" stroke="#ef4444" stroke-width="1.5" marker-end="url(#arrowR)"/>
+        <line x1="215" y1="118" x2="210" y2="148" stroke="#ef4444" stroke-width="1.5" marker-end="url(#arrowR)"/>
+        <line x1="245" y1="118" x2="330" y2="148" stroke="#ef4444" stroke-width="1.5" marker-end="url(#arrowR)"/>
+
+        <text x="115" y="133" fill="#ef4444" font-size="8" font-family="sans-serif">cross-shard</text>
+        <text x="115" y="143" fill="#ef4444" font-size="8" font-family="sans-serif">join required</text>
+
+        <rect x="40" y="230" width="340" height="70" rx="6" fill="rgba(239,68,68,0.1)" stroke="#ef4444" stroke-width="1"/>
+        <text x="210" y="250" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="600" font-family="sans-serif">Problems with this approach:</text>
+        <text x="60" y="268" fill="#94a3b8" font-size="9" font-family="sans-serif">• 3 network hops instead of 1</text>
+        <text x="60" y="282" fill="#94a3b8" font-size="9" font-family="sans-serif">• Cross-shard transaction needed for writes</text>
+        <text x="60" y="296" fill="#94a3b8" font-size="9" font-family="sans-serif">• Latency = slowest shard (parallel) or sum (sequential)</text>
+
+        <!-- Global secondary index problem -->
+        <rect x="40" y="315" width="340" height="55" rx="6" fill="rgba(239,68,68,0.08)" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="210" y="335" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600" font-family="sans-serif">Global Secondary Index</text>
+        <text x="210" y="350" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">Forces every write to touch multiple shards/regions</text>
+        <text x="210" y="364" text-anchor="middle" fill="#ef4444" font-size="9" font-family="sans-serif">Amplifies write cost and cross-AZ traffic</text>
+
+        <!-- GOOD: user_id sharding -->
+        <rect x="480" y="35" width="400" height="350" rx="12" fill="#1a1f2e" stroke="#10b981" stroke-width="1.5"/>
+        <rect x="480" y="35" width="400" height="36" rx="12 12 0 0" fill="rgba(16,185,129,0.15)"/>
+        <text x="680" y="58" text-anchor="middle" fill="#10b981" font-size="12" font-weight="700" font-family="sans-serif">✓ Good Locality (Shard by user_id)</text>
+
+        <!-- User request -->
+        <rect x="615" y="82" width="130" height="36" rx="8" fill="rgba(99,102,241,0.2)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="680" y="99" text-anchor="middle" fill="#818cf8" font-size="10" font-weight="600" font-family="sans-serif">User Request</text>
+        <text x="680" y="112" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">Load user profile + orders</text>
+
+        <!-- Single shard with all data -->
+        <line x1="680" y1="118" x2="680" y2="145" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrowG)"/>
+        <text x="695" y="135" fill="#10b981" font-size="9" font-family="sans-serif">1 hop only</text>
+
+        <rect x="590" y="148" width="180" height="100" rx="8" fill="rgba(16,185,129,0.1)" stroke="#10b981" stroke-width="2"/>
+        <text x="680" y="170" text-anchor="middle" fill="#10b981" font-size="10" font-weight="700" font-family="sans-serif">Shard A (user_id hash)</text>
+        <text x="680" y="188" text-anchor="middle" fill="#06b6d4" font-size="9" font-family="sans-serif">Profile data (user 123)</text>
+        <text x="680" y="203" text-anchor="middle" fill="#f59e0b" font-size="9" font-family="sans-serif">Orders data (user 123)</text>
+        <text x="680" y="218" text-anchor="middle" fill="#10b981" font-size="9" font-family="sans-serif">Prefs data (user 123)</text>
+        <text x="680" y="233" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="sans-serif">All co-located</text>
+
+        <!-- Other shards exist but unused -->
+        <rect x="500" y="270" width="80" height="40" rx="6" fill="#1a1f2e" stroke="#2d3448" stroke-width="1" opacity="0.5"/>
+        <text x="540" y="294" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="sans-serif">Shard B</text>
+
+        <rect x="780" y="270" width="80" height="40" rx="6" fill="#1a1f2e" stroke="#2d3448" stroke-width="1" opacity="0.5"/>
+        <text x="820" y="294" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="sans-serif">Shard C</text>
+
+        <rect x="500" y="315" width="360" height="55" rx="6" fill="rgba(16,185,129,0.08)" stroke="#10b981" stroke-width="1"/>
+        <text x="680" y="335" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600" font-family="sans-serif">Benefits of locality:</text>
+        <text x="500" y="353" fill="#94a3b8" font-size="9" font-family="sans-serif">  • 1 network hop · No cross-shard joins · Local transactions</text>
+        <text x="500" y="367" fill="#94a3b8" font-size="9" font-family="sans-serif">  • Session locality: same shard = warm cache on repeat requests</text>
+      </svg>
+    </div>
+
+    <div class="card-grid" style="margin-top:1rem;">
+      <div class="warn">
+        <div class="warn-label">⚠ Common Locality Mistakes</div>
+        <ul style="font-size:0.9rem;padding-left:1.2rem;color:var(--text);">
+          <li>Sharding by random key and doing frequent cross-shard queries</li>
+          <li>Putting cache in a different region from the application</li>
+          <li>Running global secondary indexes that force every write to touch multiple regions</li>
+          <li>Chatty microservices where one user request fans out to 15 services in different AZs</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMBINED RULES -->
+  <section id="combined">
+    <div class="section-title"><div class="num">07</div>Combining Both Ideas — Practical Rules</div>
+    <div class="rule-item">
+      <div class="rule-num">1</div>
+      <div class="rule-text"><strong>Make the write path idempotent first.</strong> Then you can safely retry, timeout aggressively, and use at-least-once queues without fear. Idempotency is the enabler of reliable retry logic.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">2</div>
+      <div class="rule-text"><strong>Design data model for locality before service boundaries.</strong> If the most common transaction touches data in 3 different services, the service boundaries are probably wrong. Fix the data model, then the boundaries follow.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">3</div>
+      <div class="rule-text"><strong>Prefer "process locally, propagate asynchronously."</strong> Local decision + eventual reconciliation is almost always faster and more available than a distributed transaction. The coordination overhead of synchronous cross-region writes is prohibitive.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">4</div>
+      <div class="rule-text"><strong>Measure cost of non-locality.</strong> Track cross-AZ and cross-region traffic. When it spikes, you have a locality problem — often long before users complain about latency. Instrument this from day one.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">5</div>
+      <div class="rule-text"><strong>Idempotency keys must travel with the request.</strong> Through API gateway, message queues, internal RPCs — every hop. If any single hop drops the key, the guarantee is gone. Propagation is not optional.</div>
+    </div>
+
+    <div class="table-wrap" style="margin-top:1.5rem;">
+      <table>
+        <thead>
+          <tr>
+            <th>Without These Patterns</th>
+            <th>With Idempotency + Locality</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Retry = double charge risk</td>
+            <td>Retry = safe, returns same result</td>
+          </tr>
+          <tr>
+            <td>Every retry = potential duplicate side-effect</td>
+            <td>At-least-once queues are safe to use</td>
+          </tr>
+          <tr>
+            <td>Shard by random key = cross-shard joins on every query</td>
+            <td>Shard by user_id = single-shard reads for common case</td>
+          </tr>
+          <tr>
+            <td>Cache in wrong region = cross-AZ hops on every request</td>
+            <td>Cache co-located with app = sub-millisecond lookup</td>
+          </tr>
+          <tr>
+            <td>Chatty services = 15 AZ hops = latency stacking</td>
+            <td>Local decisions + async propagation = fast + available</td>
+          </tr>
+          <tr>
+            <td>Distributed transactions for consistency</td>
+            <td>Local consistency + async reconciliation at a fraction of the cost</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SERIES FINALE -->
+  <section id="finale">
+    <div class="section-title"><div class="num">08</div>Series Finale — 23 Concepts Complete</div>
+    <div class="finale-banner">
+      <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent);margin-bottom:0.75rem;">🎓 25-Day Scaling & Architecture — Series Complete</div>
+      <h3 style="font-size:1.15rem;margin-bottom:1rem;">All 23 concepts covered in this series</h3>
+      <div class="series-grid">
+        <div class="series-item"><div class="series-num">1</div>Load Balancing</div>
+        <div class="series-item"><div class="series-num">2</div>CDN</div>
+        <div class="series-item"><div class="series-num">3</div>Caching</div>
+        <div class="series-item"><div class="series-num">4</div>Cache Invalidation</div>
+        <div class="series-item"><div class="series-num">5</div>Rate Limiting</div>
+        <div class="series-item"><div class="series-num">6</div>API Gateway</div>
+        <div class="series-item"><div class="series-num">7</div>CAP Theorem</div>
+        <div class="series-item"><div class="series-num">8</div>Sharding</div>
+        <div class="series-item"><div class="series-num">9</div>Replication</div>
+        <div class="series-item"><div class="series-num">10</div>Partitioning</div>
+        <div class="series-item"><div class="series-num">11</div>Queues</div>
+        <div class="series-item"><div class="series-num">12</div>Microservices</div>
+        <div class="series-item"><div class="series-num">13</div>Monolith vs Micro</div>
+        <div class="series-item"><div class="series-num">14</div>Fault Tolerance</div>
+        <div class="series-item"><div class="series-num">15</div>Database Scaling</div>
+        <div class="series-item"><div class="series-num">16</div>Service Discovery</div>
+        <div class="series-item"><div class="series-num">17</div>Consistency Models</div>
+        <div class="series-item"><div class="series-num">18</div>Eventual Consistency</div>
+        <div class="series-item"><div class="series-num">19</div>Distributed Txns</div>
+        <div class="series-item"><div class="series-num">20</div>Leader Election</div>
+        <div class="series-item"><div class="series-num">21</div>Horiz vs Vert Scale</div>
+        <div class="series-item"><div class="series-num">22</div>Back-of-Envelope</div>
+        <div class="series-item" style="border:1px solid var(--accent);"><div class="series-num" style="background:var(--accent);color:white;">23</div>Idempotency + Locality</div>
+      </div>
+      <div style="margin-top:1.25rem;padding:1rem;background:rgba(99,102,241,0.08);border-radius:10px;font-size:0.95rem;">
+        <strong style="color:var(--accent2);">"These 23 concepts are the foundation. Every complex system you design builds on top of them."</strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <div class="section-title"><div class="num">09</div>Quick Reference</div>
+    <div class="cheatsheet">
+      <div class="cs-title">⚡ Day 23 Cheat Sheet — Idempotency + Data Locality</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>Idempotency key pattern</strong>
+          Client generates UUID per operation. Server stores key+result. Duplicate key → return stored result. Never re-execute.
+        </div>
+        <div class="cs-item">
+          <strong>TTL on idempotency store</strong>
+          24–72 hours. Without TTL the store grows forever. Keys must propagate through every hop in the call chain.
+        </div>
+        <div class="cs-item">
+          <strong>At-least-once + idempotent</strong>
+          Better than exactly-once in almost every case. Exactly-once needs distributed transactions. Not worth it.
+        </div>
+        <div class="cs-item">
+          <strong>DB constraint safety net</strong>
+          Unique index on (user_id, idempotency_key). Even if app logic fails, DB rejects the duplicate.
+        </div>
+        <div class="cs-item">
+          <strong>Shard by user_id</strong>
+          Co-locates profile + orders + prefs on one shard. Cross-shard joins become rare instead of routine.
+        </div>
+        <div class="cs-item">
+          <strong>Fastest call = no call</strong>
+          Avoid cross-AZ / cross-region hops on critical path. Cache co-located with app. Edge for static assets.
+        </div>
+        <div class="cs-item">
+          <strong>Data model before boundaries</strong>
+          If common transaction touches 3 services, boundaries are wrong. Fix data model first.
+        </div>
+        <div class="cs-item">
+          <strong>Process local, propagate async</strong>
+          Local decision + eventual reconciliation &gt; synchronous cross-region distributed transaction.
+        </div>
+        <div class="cs-item">
+          <strong>Monitor cross-AZ traffic</strong>
+          Spike in cross-AZ traffic = locality problem. Catch it before users notice latency.
+        </div>
+      </div>
+    </div>
+
+    <div class="danger" style="margin-top:2rem;">
+      <div class="danger-label">💡 Series Finale Takeaway</div>
+      <p style="font-size:1rem;font-weight:600;margin-bottom:0.75rem;">"Idempotency makes retries safe. Data locality makes the common path fast and cheap. Together they remove entire categories of production pain: duplicate side-effects, latency spikes from unnecessary network hops, cascading failures from chatty non-local architectures, and the need for heavy distributed transactions."</p>
+      <p style="font-size:0.95rem;">"Build them in from the start. They are far cheaper to design for than to retrofit after the incidents start arriving."</p>
+    </div>
+  </section>
+</div>
+
+<script>
+function toggleTheme() {
+  const html = document.documentElement;
+  const btn = document.querySelector('.theme-btn');
+  if (html.dataset.theme === 'dark') {
+    html.dataset.theme = 'light';
+    btn.textContent = '🌙 Dark';
+  } else {
+    html.dataset.theme = 'dark';
+    btn.textContent = '☀️ Light';
+  }
+}
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.08 });
+document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

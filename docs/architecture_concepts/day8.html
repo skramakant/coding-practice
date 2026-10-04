@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 8 — Sharding | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #1e293b; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(248,250,252,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 640px; }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .card p, .card ul { font-size: 0.9rem; color: var(--text2); }
+  .card ul { padding-left: 1.2rem; }
+  .card ul li { margin-bottom: 0.35rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .danger-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 0.4rem; }
+  .success { background: var(--green-bg); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .success-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-purple { background: var(--accent-bg); color: var(--accent2); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  .staircase { display: flex; flex-direction: column; gap: 0.5rem; margin: 1.5rem 0; }
+  .stair { border-radius: 10px; padding: 0.85rem 1.25rem; display: flex; align-items: center; gap: 1rem; font-size: 0.88rem; }
+  .stair-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; flex-shrink: 0; }
+  code { background: var(--bg3); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: var(--green); }
+  @media (max-width: 640px) { nav { padding: 0 1rem; gap: 1rem; } .page { padding: 72px 1rem 3rem; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">Day 8 · Sharding</span>
+  <div class="nav-links">
+    <a href="#intro">Sharding vs Partitioning</a>
+    <a href="#strategies">3 Strategies</a>
+    <a href="#diagrams">Diagrams</a>
+    <a href="#shardkey">Shard Key</a>
+    <a href="#domains">Domains</a>
+    <a href="#when">When to Shard</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀ Light</button>
+</nav>
+
+<div class="page">
+  <header class="hero">
+    <div class="hero-tag">Day 8 of 25 · Scaling & Architecture</div>
+    <h1>Database <span>Sharding</span></h1>
+    <p class="hero-sub">Most teams reach for sharding when there are 4 cheaper things to try first. Know when — and when NOT — to shard.</p>
+  </header>
+
+  <!-- SHARDING VS PARTITIONING -->
+  <section id="intro">
+    <h2 class="section-title"><span class="num">1</span> Sharding vs Partitioning — Know the Difference</h2>
+    <div class="card-grid">
+      <div class="card" style="border-color:var(--green);">
+        <h3 style="color:var(--green);">🗂️ Partitioning</h3>
+        <p style="margin-bottom:0.75rem;">Splitting a table into smaller pieces <strong>within ONE database server</strong>. Same server, same backups, same connection pool.</p>
+        <ul>
+          <li>✅ Low-risk and reversible</li>
+          <li>✅ Same server — no distributed systems overhead</li>
+          <li>✅ Backups still work the same way</li>
+          <li>✅ JOINs and transactions work normally</li>
+          <li>✅ Try this first — always</li>
+        </ul>
+      </div>
+      <div class="card" style="border-color:var(--accent);">
+        <h3 style="color:var(--accent2);">⚡ Sharding</h3>
+        <p style="margin-bottom:0.75rem;">Splitting data across <strong>MULTIPLE database servers</strong>. Each shard is a fully independent database.</p>
+        <ul>
+          <li>⚠️ Cross-shard queries are expensive</li>
+          <li>❌ JOINs across shards don't work</li>
+          <li>❌ Cross-shard transactions need distributed coordination</li>
+          <li>❌ Rebalancing when adding shards is painful</li>
+          <li>⚠️ Irreversible without major work</li>
+        </ul>
+      </div>
+    </div>
+    <div class="takeaway">
+      <div class="takeaway-label">📏 Golden Rule</div>
+      <p><strong>Partition before you shard.</strong> If partitioning solves the problem, you avoided months of distributed systems headaches. Sharding is a last resort, not a first step.</p>
+    </div>
+  </section>
+
+  <!-- 3 STRATEGIES -->
+  <section id="strategies">
+    <h2 class="section-title"><span class="num">2</span> The 3 Sharding Strategies</h2>
+    <div class="card-grid">
+      <div class="card">
+        <h3 style="color:var(--cyan);">📊 Range-Based Sharding</h3>
+        <div style="font-family:monospace; font-size:0.82rem; background:var(--bg3); padding:0.75rem; border-radius:8px; margin:0.75rem 0; color:var(--cyan);">
+          A-H → Shard 1<br>
+          I-P → Shard 2<br>
+          Q-Z → Shard 3
+        </div>
+        <div style="display:flex; gap:0.5rem; margin-top:0.5rem; flex-wrap:wrap;">
+          <span class="badge badge-green">✅ Range queries fast</span>
+          <span class="badge badge-red">❌ Hotspots (all "S" names on shard 3)</span>
+        </div>
+        <p style="margin-top:0.75rem; font-size:0.85rem; color:var(--text2);">Good for time-series data when hotspot risk is managed. Bad for names/IDs with skewed distribution.</p>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--accent2);">🔢 Hash-Based Sharding</h3>
+        <div style="font-family:monospace; font-size:0.82rem; background:var(--bg3); padding:0.75rem; border-radius:8px; margin:0.75rem 0; color:var(--accent2);">
+          hash(user_id) % num_shards<br>
+          → shard index
+        </div>
+        <div style="display:flex; gap:0.5rem; margin-top:0.5rem; flex-wrap:wrap;">
+          <span class="badge badge-green">✅ Even distribution</span>
+          <span class="badge badge-red">❌ Range queries destroyed</span>
+          <span class="badge badge-yellow">⚠️ Adding shard = rehashing</span>
+        </div>
+        <p style="margin-top:0.75rem; font-size:0.85rem; color:var(--text2);">Most teams use this with <strong>consistent hashing</strong> to handle adding/removing shards without full reshuffling.</p>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--yellow);">📖 Directory-Based Sharding</h3>
+        <div style="font-family:monospace; font-size:0.82rem; background:var(--bg3); padding:0.75rem; border-radius:8px; margin:0.75rem 0; color:var(--yellow);">
+          lookup_table[user_id]<br>
+          → shard_id
+        </div>
+        <div style="display:flex; gap:0.5rem; margin-top:0.5rem; flex-wrap:wrap;">
+          <span class="badge badge-green">✅ Maximum flexibility</span>
+          <span class="badge badge-red">❌ Lookup table = SPOF</span>
+          <span class="badge badge-red">❌ Bottleneck at scale</span>
+        </div>
+        <p style="margin-top:0.75rem; font-size:0.85rem; color:var(--text2);">Good when you need to remap data to shards without rehashing. Risky because the directory is a single point of failure.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SVG DIAGRAMS -->
+  <section id="diagrams">
+    <h2 class="section-title"><span class="num">3</span> Diagrams — Strategies &amp; When-to-Shard Staircase</h2>
+
+    <div class="svg-wrap">
+      <svg width="960" height="420" viewBox="0 0 960 420" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;">
+        <defs>
+          <marker id="arrd" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#6366f1"/>
+          </marker>
+        </defs>
+
+        <rect x="0" y="0" width="960" height="420" rx="14" fill="#1a1f2e"/>
+
+        <!-- RANGE-BASED -->
+        <text x="155" y="30" text-anchor="middle" fill="#06b6d4" font-size="12" font-weight="700">RANGE-BASED</text>
+
+        <!-- User data row -->
+        <rect x="20" y="46" width="270" height="30" rx="5" fill="#242938" stroke="#2d3448"/>
+        <text x="155" y="65" text-anchor="middle" fill="#94a3b8" font-size="10">Users: Alice, Bob, Ian, Sam, Zoe ...</text>
+
+        <!-- Arrow down -->
+        <line x1="155" y1="76" x2="155" y2="96" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrd)"/>
+
+        <!-- 3 shards -->
+        <rect x="20" y="100" width="78" height="50" rx="8" fill="rgba(6,182,212,0.1)" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="59" y="122" text-anchor="middle" fill="#06b6d4" font-size="11" font-weight="700">Shard 1</text>
+        <text x="59" y="138" text-anchor="middle" fill="#94a3b8" font-size="10">A – H</text>
+
+        <rect x="108" y="100" width="78" height="50" rx="8" fill="rgba(6,182,212,0.1)" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="147" y="122" text-anchor="middle" fill="#06b6d4" font-size="11" font-weight="700">Shard 2</text>
+        <text x="147" y="138" text-anchor="middle" fill="#94a3b8" font-size="10">I – P</text>
+
+        <rect x="196" y="100" width="78" height="50" rx="8" fill="rgba(239,68,68,0.15)" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="235" y="122" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700">Shard 3 🔥</text>
+        <text x="235" y="138" text-anchor="middle" fill="#94a3b8" font-size="10">Q – Z (hotspot!)</text>
+
+        <!-- Pros/cons -->
+        <text x="25" y="174" fill="#10b981" font-size="10">✅ Range queries fast</text>
+        <text x="25" y="190" fill="#ef4444" font-size="10">❌ Hotspots if skewed</text>
+
+        <!-- HASH-BASED (middle) -->
+        <text x="478" y="30" text-anchor="middle" fill="#818cf8" font-size="12" font-weight="700">HASH-BASED</text>
+
+        <rect x="340" y="46" width="270" height="30" rx="5" fill="#242938" stroke="#2d3448"/>
+        <text x="478" y="65" text-anchor="middle" fill="#94a3b8" font-size="10">hash(user_id) % 3 = shard index</text>
+
+        <line x1="478" y1="76" x2="478" y2="96" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrd)"/>
+
+        <rect x="340" y="100" width="78" height="50" rx="8" fill="rgba(99,102,241,0.12)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="379" y="122" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700">Shard 0</text>
+        <text x="379" y="138" text-anchor="middle" fill="#94a3b8" font-size="10">hash % 3 = 0</text>
+
+        <rect x="429" y="100" width="78" height="50" rx="8" fill="rgba(99,102,241,0.12)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="468" y="122" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700">Shard 1</text>
+        <text x="468" y="138" text-anchor="middle" fill="#94a3b8" font-size="10">hash % 3 = 1</text>
+
+        <rect x="518" y="100" width="78" height="50" rx="8" fill="rgba(99,102,241,0.12)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="557" y="122" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700">Shard 2</text>
+        <text x="557" y="138" text-anchor="middle" fill="#94a3b8" font-size="10">hash % 3 = 2</text>
+
+        <text x="345" y="174" fill="#10b981" font-size="10">✅ Even distribution</text>
+        <text x="345" y="190" fill="#ef4444" font-size="10">❌ Range queries scan all shards</text>
+        <text x="345" y="206" fill="#f59e0b" font-size="10">💡 Use consistent hashing!</text>
+
+        <!-- DIRECTORY-BASED (right) -->
+        <text x="810" y="30" text-anchor="middle" fill="#f59e0b" font-size="12" font-weight="700">DIRECTORY-BASED</text>
+
+        <!-- Lookup table -->
+        <rect x="695" y="46" width="230" height="80" rx="8" fill="rgba(245,158,11,0.1)" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="810" y="68" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700">Lookup Table (SPOF!)</text>
+        <text x="710" y="86" fill="#94a3b8" font-size="10">user_1001 → Shard A</text>
+        <text x="710" y="102" fill="#94a3b8" font-size="10">user_1002 → Shard B</text>
+        <text x="710" y="118" fill="#94a3b8" font-size="10">user_1003 → Shard A</text>
+
+        <line x1="810" y1="126" x2="810" y2="146" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrd)"/>
+
+        <rect x="695" y="150" width="100" height="50" rx="8" fill="rgba(245,158,11,0.12)" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="745" y="172" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700">Shard A</text>
+        <text x="745" y="188" text-anchor="middle" fill="#94a3b8" font-size="10">flexible</text>
+
+        <rect x="808" y="150" width="100" height="50" rx="8" fill="rgba(245,158,11,0.12)" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="858" y="172" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700">Shard B</text>
+        <text x="858" y="188" text-anchor="middle" fill="#94a3b8" font-size="10">flexible</text>
+
+        <text x="700" y="222" fill="#10b981" font-size="10">✅ Max flexibility, remap anytime</text>
+        <text x="700" y="238" fill="#ef4444" font-size="10">❌ Lookup table = SPOF + bottleneck</text>
+
+        <!-- Comparison dividers -->
+        <line x1="320" y1="20" x2="320" y2="260" stroke="#2d3448" stroke-width="1" stroke-dasharray="4,4"/>
+        <line x1="668" y1="20" x2="668" y2="260" stroke="#2d3448" stroke-width="1" stroke-dasharray="4,4"/>
+
+        <!-- WHEN-TO-SHARD STAIRCASE (bottom) -->
+        <line x1="20" y1="275" x2="940" y2="275" stroke="#2d3448" stroke-width="1"/>
+        <text x="480" y="298" text-anchor="middle" fill="#818cf8" font-size="13" font-weight="700">When to Actually Shard — Try These First</text>
+
+        <!-- Stair steps bottom to top (shows escalation) -->
+        <rect x="20" y="312" width="130" height="36" rx="6" fill="rgba(16,185,129,0.12)" stroke="#10b981" stroke-width="1"/>
+        <text x="85" y="328" text-anchor="middle" fill="#10b981" font-size="10" font-weight="700">1. Optimize Queries</text>
+        <text x="85" y="343" text-anchor="middle" fill="#94a3b8" font-size="9">Indexes, EXPLAIN</text>
+
+        <rect x="162" y="312" width="130" height="36" rx="6" fill="rgba(16,185,129,0.12)" stroke="#10b981" stroke-width="1"/>
+        <text x="227" y="328" text-anchor="middle" fill="#10b981" font-size="10" font-weight="700">2. Connection Pooling</text>
+        <text x="227" y="343" text-anchor="middle" fill="#94a3b8" font-size="9">PgBouncer, ProxySQL</text>
+
+        <rect x="304" y="312" width="130" height="36" rx="6" fill="rgba(6,182,212,0.12)" stroke="#06b6d4" stroke-width="1"/>
+        <text x="369" y="328" text-anchor="middle" fill="#06b6d4" font-size="10" font-weight="700">3. Read Replicas</text>
+        <text x="369" y="343" text-anchor="middle" fill="#94a3b8" font-size="9">Scale reads cheaply</text>
+
+        <rect x="446" y="312" width="130" height="36" rx="6" fill="rgba(6,182,212,0.12)" stroke="#06b6d4" stroke-width="1"/>
+        <text x="511" y="328" text-anchor="middle" fill="#06b6d4" font-size="10" font-weight="700">4. Partition Tables</text>
+        <text x="511" y="343" text-anchor="middle" fill="#94a3b8" font-size="9">Range/Hash/List</text>
+
+        <rect x="588" y="312" width="130" height="36" rx="6" fill="rgba(245,158,11,0.12)" stroke="#f59e0b" stroke-width="1"/>
+        <text x="653" y="328" text-anchor="middle" fill="#f59e0b" font-size="10" font-weight="700">5. Vertical Scaling</text>
+        <text x="653" y="343" text-anchor="middle" fill="#94a3b8" font-size="9">Bigger server first</text>
+
+        <rect x="730" y="312" width="180" height="36" rx="6" fill="rgba(239,68,68,0.15)" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="820" y="328" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="700">6. THEN Consider Sharding</text>
+        <text x="820" y="343" text-anchor="middle" fill="#94a3b8" font-size="9">≥500GB OR ≥10k writes/sec</text>
+
+        <!-- connecting arrows -->
+        <line x1="152" y1="330" x2="162" y2="330" stroke="#94a3b8" stroke-width="1" marker-end="url(#arrd)"/>
+        <line x1="294" y1="330" x2="304" y2="330" stroke="#94a3b8" stroke-width="1" marker-end="url(#arrd)"/>
+        <line x1="436" y1="330" x2="446" y2="330" stroke="#94a3b8" stroke-width="1" marker-end="url(#arrd)"/>
+        <line x1="578" y1="330" x2="588" y2="330" stroke="#94a3b8" stroke-width="1" marker-end="url(#arrd)"/>
+        <line x1="720" y1="330" x2="730" y2="330" stroke="#94a3b8" stroke-width="1" marker-end="url(#arrd)"/>
+
+        <!-- heuristic note -->
+        <text x="480" y="395" text-anchor="middle" fill="#94a3b8" font-size="11">💡 Rough heuristic: Under 500 GB and &lt;10k writes/sec = you probably don't need sharding</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- SHARD KEY -->
+  <section id="shardkey">
+    <h2 class="section-title"><span class="num">4</span> Choosing a Shard Key — The Most Important Decision</h2>
+    <div class="danger">
+      <div class="danger-label">🚫 Worst Mistake</div>
+      <p>Choosing a shard key that makes <strong>writes fast</strong> but reads require <strong>scatter-gather across all shards</strong>. Always optimize for reads — that's your hot path.</p>
+    </div>
+    <div class="card-grid">
+      <div class="card">
+        <h3>✅ Good Shard Key Properties</h3>
+        <ul>
+          <li><strong>Shard on the most-queried field</strong> — the field you filter on most</li>
+          <li><strong>High cardinality</strong> — thousands or millions of distinct values</li>
+          <li><strong>Even distribution</strong> — no single value dominates (avoid status, boolean fields)</li>
+          <li><strong>Co-locate related data</strong> — avoid cross-shard operations</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>❌ Bad Shard Key Examples</h3>
+        <ul>
+          <li><code>status</code> — only a few values, huge hotspots</li>
+          <li><code>country</code> — uneven (US gets 80% of data)</li>
+          <li><code>created_at</code> alone — current day = hotspot</li>
+          <li><code>email_domain</code> — gmail.com dominates everything</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOMAINS -->
+  <section id="domains">
+    <h2 class="section-title"><span class="num">5</span> Common Shard Keys by Domain</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Domain</th>
+            <th>Shard Key</th>
+            <th>Reasoning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Multi-tenant SaaS</strong></td>
+            <td><code>tenant_id</code></td>
+            <td>All queries are per-tenant. Data naturally isolated. Easy customer-level scaling.</td>
+          </tr>
+          <tr>
+            <td><strong>Social Network</strong></td>
+            <td><code>user_id</code></td>
+            <td>Feeds, posts, connections all query by user. Co-locates user's data.</td>
+          </tr>
+          <tr>
+            <td><strong>E-Commerce</strong></td>
+            <td><code>customer_id</code></td>
+            <td>Orders, cart, wishlist all filter by customer. Keeps customer journey on one shard.</td>
+          </tr>
+          <tr>
+            <td><strong>Time-Series / IoT</strong></td>
+            <td><code>time_bucket + hash</code></td>
+            <td>Avoids current-time hotspot. Combines time range with even distribution.</td>
+          </tr>
+          <tr>
+            <td><strong>Chat / Messaging</strong></td>
+            <td><code>conversation_id</code></td>
+            <td>All messages in a conversation co-located. Efficient conversation fetching.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- WHEN TO SHARD -->
+  <section id="when">
+    <h2 class="section-title"><span class="num">6</span> The 6-Step Escalation Ladder</h2>
+    <p style="color:var(--text2); margin-bottom:1rem;">Before reaching for sharding, exhaust these options in order:</p>
+    <div class="staircase">
+      <div class="stair" style="background:var(--green-bg); border:1px solid var(--green);">
+        <div class="stair-num" style="background:var(--green); color:#fff;">1</div>
+        <div><strong>Optimize Queries</strong> — Add missing indexes, rewrite slow queries with EXPLAIN, eliminate N+1 queries</div>
+      </div>
+      <div class="stair" style="background:var(--green-bg); border:1px solid var(--green);">
+        <div class="stair-num" style="background:var(--green); color:#fff;">2</div>
+        <div><strong>Add Connection Pooling</strong> — PgBouncer, ProxySQL. Often eliminates connection exhaustion bottlenecks instantly</div>
+      </div>
+      <div class="stair" style="background:var(--cyan-bg); border:1px solid var(--cyan);">
+        <div class="stair-num" style="background:var(--cyan); color:#fff;">3</div>
+        <div><strong>Add Read Replicas</strong> — Route read-heavy traffic to replicas. Cheap horizontal read scaling</div>
+      </div>
+      <div class="stair" style="background:var(--cyan-bg); border:1px solid var(--cyan);">
+        <div class="stair-num" style="background:var(--cyan); color:#fff;">4</div>
+        <div><strong>Partition Large Tables</strong> — Range/Hash/List partitioning within the same DB. Low risk, high reward</div>
+      </div>
+      <div class="stair" style="background:var(--yellow-bg); border:1px solid var(--yellow);">
+        <div class="stair-num" style="background:var(--yellow); color:#fff;">5</div>
+        <div><strong>Vertical Scaling</strong> — Bigger server: more RAM, faster SSD, more CPU. Often buys months of runway</div>
+      </div>
+      <div class="stair" style="background:var(--red-bg); border:1px solid var(--red);">
+        <div class="stair-num" style="background:var(--red); color:#fff;">6</div>
+        <div><strong>Sharding</strong> — Only when ≥500 GB OR ≥10k writes/sec AND all above options exhausted</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <h2 class="section-title"><span class="num">7</span> Quick Reference</h2>
+    <div class="cheatsheet">
+      <div class="cs-title">📋 Sharding — Cheat Sheet</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>Partitioning vs Sharding</strong>
+          Partition = same server. Shard = multiple servers. Partition first, always.
+        </div>
+        <div class="cs-item">
+          <strong>Range-Based</strong>
+          A-H, I-P, Q-Z. Fast range queries. Risk: hotspots on popular ranges.
+        </div>
+        <div class="cs-item">
+          <strong>Hash-Based</strong>
+          hash(key) % N. Even distribution. Range queries scan all shards. Use consistent hashing.
+        </div>
+        <div class="cs-item">
+          <strong>Directory-Based</strong>
+          Lookup table → shard. Max flexibility. Lookup table = SPOF + bottleneck.
+        </div>
+        <div class="cs-item">
+          <strong>Best shard key properties</strong>
+          High cardinality, even distribution, most-queried field, co-locates related data.
+        </div>
+        <div class="cs-item">
+          <strong>Worst mistake</strong>
+          Shard key optimized for writes but reads require scatter-gather across all shards.
+        </div>
+        <div class="cs-item">
+          <strong>When to shard</strong>
+          ≥500 GB or ≥10k writes/sec, after exhausting 5 other options.
+        </div>
+        <div class="cs-item">
+          <strong>Sharding adds complexity</strong>
+          Cross-shard JOINs break. Transactions need distributed coordination. Rebalancing is painful.
+        </div>
+        <div class="cs-item">
+          <strong>By domain: SaaS</strong>
+          tenant_id — Social: user_id — E-comm: customer_id — Chat: conversation_id
+        </div>
+        <div class="cs-item">
+          <strong>Consistent hashing</strong>
+          Handles adding/removing shards without reshuffling all data. Use it.
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const btn = document.getElementById('themeBtn');
+    if (html.getAttribute('data-theme') === 'dark') {
+      html.setAttribute('data-theme', 'light');
+      btn.textContent = '🌙 Dark';
+    } else {
+      html.setAttribute('data-theme', 'dark');
+      btn.textContent = '☀ Light';
+    }
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

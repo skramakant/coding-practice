@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 15 — Database Scaling | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #1e293b; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(248,250,252,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 640px; }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .card p, .card ul { font-size: 0.9rem; color: var(--text2); }
+  .card ul { padding-left: 1.2rem; }
+  .card ul li { margin-bottom: 0.35rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .danger-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 0.4rem; }
+  .success { background: var(--green-bg); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .success-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-purple { background: var(--accent-bg); color: var(--accent2); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  .anecdote { background: var(--bg2); border-left: 4px solid var(--yellow); border-radius: 0 12px 12px 0; padding: 1.25rem 1.5rem; margin: 0 0 1.5rem; }
+  code { background: var(--bg3); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: var(--green); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .step-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; }
+  .step-header { display: flex; align-items: center; gap: 1rem; padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); }
+  .step-num { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; flex-shrink: 0; }
+  .step-body { padding: 1.5rem; }
+  .quote-block { background: var(--bg3); border-radius: 12px; padding: 1.5rem 2rem; margin: 1.5rem 0; text-align: center; font-size: 1.05rem; font-style: italic; color: var(--text2); border-left: 4px solid var(--accent); }
+  .quote-block strong { color: var(--accent); }
+  @media (max-width: 640px) { nav { padding: 0 1rem; gap: 1rem; } .page { padding: 72px 1rem 3rem; } .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<nav>
+  <span class="nav-brand">Day 15</span>
+  <div class="nav-links">
+    <a href="#story">The Story</a>
+    <a href="#ladder">5-Step Ladder</a>
+    <a href="#step1">Indexes</a>
+    <a href="#step2">Connection Pooling</a>
+    <a href="#step3">Read Replicas</a>
+    <a href="#step4">Partitioning</a>
+    <a href="#step5">Sharding</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀ Light</button>
+</nav>
+
+<div class="page">
+  <div class="hero">
+    <div class="hero-tag">Day 15 · 25-Day Scaling Series</div>
+    <h1>Database <span>Scaling</span></h1>
+    <p class="hero-sub">Database scaling is a sequence. Each step is ~10x cheaper than the next and handles ~10x more load. Apply steps in order. Most products never reach step 5.</p>
+  </div>
+
+  <!-- STORY -->
+  <section id="story">
+    <div class="section-title"><div class="num">1</div> The Premature Sharding Story</div>
+    <div class="anecdote">
+      <strong style="color:var(--yellow);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;">Happens Hundreds of Times a Year</strong>
+      <p style="margin-top:0.5rem;">A growing startup notices dashboards slowing from 200ms to 4s. On-call gets paged at 11pm — 95% CPU. Someone says "we need to shard". A 2-week sprint becomes a 4-month migration. Halfway through the sharding implementation, they discover the original problem: <strong>one missing index on <code>created_at</code></strong>. The entire 4-month effort was unnecessary.</p>
+    </div>
+    <div class="takeaway">
+      <div class="takeaway-label">The Principle</div>
+      <p>Database scaling = a sequence. Each step is roughly <strong>10x cheaper</strong> than the next and handles roughly <strong>10x more load</strong>. Identify the actual bottleneck. Apply the cheapest fix first. Move on.</p>
+    </div>
+  </section>
+
+  <!-- SCALING LADDER SVG -->
+  <section id="ladder">
+    <div class="section-title"><div class="num">2</div> The 5-Step Scaling Ladder</div>
+
+    <div class="svg-wrap">
+      <svg width="860" height="380" viewBox="0 0 860 380" xmlns="http://www.w3.org/2000/svg">
+        <!-- Background ladder -->
+        <!-- Step 5 (bottom wide, last resort) -->
+        <rect x="20" y="300" width="820" height="66" rx="12" fill="rgba(239,68,68,0.07)" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="200" y="322" fill="#ef4444" font-size="13" font-weight="700" font-family="system-ui">⑤ Sharding</text>
+        <text x="200" y="340" fill="#94a3b8" font-size="11" font-family="system-ui">Split across separate DB instances · Last resort</text>
+        <text x="200" y="356" fill="#64748b" font-size="10" font-family="system-ui">Permanent shard key decision · Cross-shard query complexity</text>
+        <text x="700" y="330" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="700" font-family="system-ui">500k+ write QPS</text>
+        <text x="700" y="348" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">10+ nodes · Multi-TB datasets</text>
+        <text x="820" y="336" text-anchor="end" fill="#ef4444" font-size="10" font-family="system-ui">LAST RESORT →</text>
+
+        <!-- Step 4 -->
+        <rect x="30" y="234" width="800" height="58" rx="10" fill="rgba(245,158,11,0.07)" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="210" y="256" fill="#f59e0b" font-size="13" font-weight="700" font-family="system-ui">④ Partitioning</text>
+        <text x="210" y="272" fill="#94a3b8" font-size="11" font-family="system-ui">Split large tables within same DB · By date/range/list</text>
+        <text x="210" y="286" fill="#64748b" font-size="10" font-family="system-ui">10B rows → 24 × 400M row monthly partitions</text>
+        <text x="690" y="263" text-anchor="middle" fill="#f59e0b" font-size="12" font-weight="700" font-family="system-ui">5–10× on huge tables</text>
+        <text x="690" y="281" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">O(1) old data drop · Fast VACUUM</text>
+
+        <!-- Step 3 -->
+        <rect x="50" y="174" width="760" height="52" rx="10" fill="rgba(6,182,212,0.07)" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="220" y="195" fill="#06b6d4" font-size="13" font-weight="700" font-family="system-ui">③ Read Replicas</text>
+        <text x="220" y="211" fill="#94a3b8" font-size="11" font-family="system-ui">Primary writes + WAL streams to replicas · Reads distributed</text>
+        <text x="220" y="222" fill="#64748b" font-size="10" font-family="system-ui">1 primary + 2–5 replicas · Load balancer for reads</text>
+        <text x="680" y="202" text-anchor="middle" fill="#06b6d4" font-size="12" font-weight="700" font-family="system-ui">50k–200k read QPS</text>
+        <text x="680" y="218" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">1–3 replicas</text>
+
+        <!-- Step 2 -->
+        <rect x="80" y="120" width="700" height="46" rx="10" fill="rgba(99,102,241,0.08)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="240" y="140" fill="#818cf8" font-size="13" font-weight="700" font-family="system-ui">② Connection Pooling</text>
+        <text x="240" y="156" fill="#94a3b8" font-size="11" font-family="system-ui">PgBouncer / ProxySQL · 50 conns serve 5,000 app requests</text>
+        <text x="660" y="148" text-anchor="middle" fill="#818cf8" font-size="12" font-weight="700" font-family="system-ui">10k–50k QPS</text>
+
+        <!-- Step 1 (top, first action) -->
+        <rect x="120" y="68" width="620" height="44" rx="10" fill="rgba(16,185,129,0.10)" stroke="#10b981" stroke-width="2"/>
+        <text x="280" y="87" fill="#10b981" font-size="14" font-weight="700" font-family="system-ui">① Indexes</text>
+        <text x="280" y="104" fill="#94a3b8" font-size="11" font-family="system-ui">Free · 1000× speedup · Do this first always</text>
+        <text x="640" y="95" text-anchor="middle" fill="#10b981" font-size="13" font-weight="700" font-family="system-ui">10k–50k QPS</text>
+
+        <!-- Arrow pointing up = start here -->
+        <text x="430" y="26" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700" font-family="system-ui">↑ START HERE · Work down only when each step is exhausted</text>
+        <text x="430" y="46" text-anchor="middle" fill="#64748b" font-size="10" font-family="system-ui">Each step: ~10× cheaper than next · handles ~10× more load</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- STEP 1: INDEXES -->
+  <section id="step1">
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num" style="background:rgba(16,185,129,0.15);color:#10b981;">1</div>
+        <div>
+          <div style="font-weight:700;font-size:1.15rem;">Indexes</div>
+          <div style="color:var(--text2);font-size:0.85rem;">Most underrated tool in the database. Free to add.</div>
+        </div>
+        <span class="badge badge-green" style="margin-left:auto;">START HERE</span>
+      </div>
+      <div class="step-body">
+        <!-- Index seek vs table scan SVG -->
+        <div class="svg-wrap">
+          <svg width="820" height="190" viewBox="0 0 820 190" xmlns="http://www.w3.org/2000/svg">
+            <!-- LEFT: Sequential Scan -->
+            <text x="175" y="22" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="700" font-family="system-ui">❌ Full Table Scan (No Index)</text>
+            <text x="175" y="40" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">1,000,000 rows = 1,000,000 reads · scales linearly</text>
+
+            <!-- Row blocks being scanned -->
+            <rect x="20" y="52" width="24" height="18" rx="3" fill="rgba(239,68,68,0.5)"/>
+            <rect x="48" y="52" width="24" height="18" rx="3" fill="rgba(239,68,68,0.5)"/>
+            <rect x="76" y="52" width="24" height="18" rx="3" fill="rgba(239,68,68,0.5)"/>
+            <rect x="104" y="52" width="24" height="18" rx="3" fill="rgba(239,68,68,0.5)"/>
+            <rect x="132" y="52" width="24" height="18" rx="3" fill="rgba(239,68,68,0.5)"/>
+            <rect x="160" y="52" width="24" height="18" rx="3" fill="rgba(239,68,68,0.5)"/>
+            <rect x="188" y="52" width="24" height="18" rx="3" fill="rgba(239,68,68,0.5)"/>
+            <rect x="216" y="52" width="24" height="18" rx="3" fill="rgba(239,68,68,0.5)"/>
+            <rect x="244" y="52" width="24" height="18" rx="3" fill="rgba(239,68,68,0.5)"/>
+            <rect x="272" y="52" width="24" height="18" rx="3" fill="rgba(239,68,68,0.5)"/>
+            <rect x="300" y="52" width="24" height="18" rx="3" fill="rgba(239,68,68,0.9)" stroke="#ef4444" stroke-width="1.5"/>
+            <text x="312" y="79" text-anchor="middle" fill="#10b981" font-size="9" font-family="system-ui">found</text>
+
+            <text x="175" y="108" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700" font-family="system-ui">Read ALL rows until match found</text>
+            <text x="175" y="128" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">1M rows table: ~1,000,000 reads</text>
+            <text x="175" y="148" text-anchor="middle" fill="#ef4444" font-size="11" font-family="system-ui">4 seconds</text>
+            <text x="175" y="168" text-anchor="middle" fill="#64748b" font-size="9.5" font-family="system-ui">EXPLAIN: "Seq Scan" (Postgres) / "ALL" (MySQL)</text>
+
+            <!-- DIVIDER -->
+            <line x1="410" y1="20" x2="410" y2="180" stroke="#2d3448" stroke-width="1" stroke-dasharray="5,3"/>
+
+            <!-- RIGHT: Index Seek -->
+            <text x="615" y="22" text-anchor="middle" fill="#10b981" font-size="12" font-weight="700" font-family="system-ui">✅ Index Seek (With Index)</text>
+            <text x="615" y="40" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">1,000,000 rows = ~20 reads · scales as log(n)</text>
+
+            <!-- B-tree visualization -->
+            <!-- Level 1 root -->
+            <rect x="585" y="52" width="60" height="22" rx="4" fill="rgba(99,102,241,0.4)" stroke="#6366f1" stroke-width="1.5"/>
+            <text x="615" y="67" text-anchor="middle" fill="#e2e8f0" font-size="10" font-family="system-ui">500k</text>
+            <!-- Lines level 1 → 2 -->
+            <line x1="595" y1="74" x2="530" y2="92" stroke="#6366f1" stroke-width="1"/>
+            <line x1="635" y1="74" x2="700" y2="92" stroke="#6366f1" stroke-width="1"/>
+            <!-- Level 2 nodes -->
+            <rect x="500" y="92" width="60" height="22" rx="4" fill="rgba(99,102,241,0.3)" stroke="#6366f1" stroke-width="1"/>
+            <text x="530" y="107" text-anchor="middle" fill="#e2e8f0" font-size="10" font-family="system-ui">250k</text>
+            <rect x="670" y="92" width="60" height="22" rx="4" fill="rgba(99,102,241,0.3)" stroke="#6366f1" stroke-width="1"/>
+            <text x="700" y="107" text-anchor="middle" fill="#e2e8f0" font-size="10" font-family="system-ui">750k</text>
+            <!-- Lines level 2 → 3 -->
+            <line x1="510" y1="114" x2="460" y2="132" stroke="#6366f1" stroke-width="1"/>
+            <line x1="550" y1="114" x2="580" y2="132" stroke="#6366f1" stroke-width="1"/>
+            <!-- Level 3 leaf (target) -->
+            <rect x="550" y="132" width="60" height="22" rx="4" fill="rgba(16,185,129,0.5)" stroke="#10b981" stroke-width="2"/>
+            <text x="580" y="148" text-anchor="middle" fill="#e2e8f0" font-size="10" font-family="system-ui">found!</text>
+
+            <text x="615" y="168" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700" font-family="system-ui">4 milliseconds (1000× faster)</text>
+          </svg>
+        </div>
+
+        <div class="card-grid">
+          <div class="card">
+            <h3>How to Find Missing Indexes</h3>
+            <p><code>pg_stat_statements</code> (Postgres) or slow query log (MySQL). Optimize highest <strong>total time</strong> = avg duration × call frequency. Run <code>EXPLAIN</code> and look for Seq Scan (Postgres) or ALL (MySQL) on large tables.</p>
+          </div>
+          <div class="card">
+            <h3>Two Most Commonly Missing</h3>
+            <ul>
+              <li><strong>Foreign keys</strong> — NOT auto-created in most DBs. Every JOIN on orders by customer needs <code>customer_id</code> indexed.</li>
+              <li><strong>Composite indexes</strong> — <code>status='pending' AND created_at &gt; ?</code> needs <code>(status, created_at)</code>. Equality columns first, range columns last.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Index Maintenance</h3>
+            <ul>
+              <li>Indexes slow writes — every INSERT/UPDATE maintains all indexes</li>
+              <li>&gt;15 indexes per table = probably duplicates</li>
+              <li><code>pg_stat_user_indexes</code> shows usage — drop 0-scan indexes</li>
+            </ul>
+          </div>
+        </div>
+        <div class="takeaway">
+          <div class="takeaway-label">The Impact</div>
+          <p>One <code>CREATE INDEX</code> can turn a 4-second query into a 4-millisecond query. That's a <strong>1,000× improvement</strong>. Free to add. This is the first thing to check — always.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2: CONNECTION POOLING -->
+  <section id="step2">
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num" style="background:rgba(99,102,241,0.15);color:#818cf8;">2</div>
+        <div>
+          <div style="font-weight:700;font-size:1.15rem;">Connection Pooling</div>
+          <div style="color:var(--text2);font-size:0.85rem;">One config file. Enormous leverage.</div>
+        </div>
+        <span class="badge badge-purple" style="margin-left:auto;">HIGH LEVERAGE</span>
+      </div>
+      <div class="step-body">
+        <div class="danger">
+          <div class="danger-label">The Problem</div>
+          <p>Each Postgres connection = ~10MB RAM + auth handshake overhead. <code>max_connections=100</code> means only 100 simultaneous queries. 50 app workers × 3 servers = at the limit. 4th server = "too many connections" errors.</p>
+        </div>
+
+        <div class="card-grid">
+          <div class="card">
+            <h3>Without Pooling</h3>
+            <ul>
+              <li>1 app worker = 1 DB connection (held for entire request)</li>
+              <li>50 workers × 3 servers = 150 connections</li>
+              <li>At max_connections: new requests fail</li>
+              <li>Scale out → immediately hit DB limit</li>
+            </ul>
+          </div>
+          <div class="card" style="border-color:var(--green);">
+            <h3 style="color:var(--green);">With PgBouncer</h3>
+            <ul>
+              <li>App → 5,000 connections to PgBouncer</li>
+              <li>PgBouncer → 50 connections to Postgres</li>
+              <li>Postgres sees 50 sessions</li>
+              <li>5,000 app requests served</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Two Layers</h3>
+            <p><strong>Application-side</strong> (built into ORM): pool size = CPU cores × 2–3, capped at 20–30 per instance.</p>
+            <p style="margin-top:0.5rem;"><strong>External pooler:</strong> PgBouncer (Postgres), ProxySQL (MySQL). Transaction mode: connection returned to pool after each transaction.</p>
+          </div>
+        </div>
+
+        <div class="success">
+          <div class="success-label">This Has Saved Companies From Outages</div>
+          <p>PgBouncer in transaction mode: app has 5,000 connections to PgBouncer. PgBouncer holds 50 connections to Postgres. Postgres sees 50 sessions. 5,000 apps served. One config file. Enormous leverage.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3: READ REPLICAS -->
+  <section id="step3">
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num" style="background:rgba(6,182,212,0.15);color:#06b6d4;">3</div>
+        <div>
+          <div style="font-weight:700;font-size:1.15rem;">Read Replicas</div>
+          <div style="color:var(--text2);font-size:0.85rem;">Multiply read capacity. Doesn't help writes.</div>
+        </div>
+        <span class="badge badge-cyan" style="margin-left:auto;">50k–200k read QPS</span>
+      </div>
+      <div class="step-body">
+        <p style="color:var(--text2);font-size:0.92rem;margin-bottom:1.25rem;">Primary accepts writes and streams WAL log. Replicas apply changes continuously. Replicas serve reads only — never accept writes.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Setup</th><th>Helps With</th><th>Does NOT Help</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1 primary + 2–5 read replicas</td>
+                <td>Read-heavy workloads (analytics, search, list views)</td>
+                <td>Write throughput — every write still hits primary</td>
+              </tr>
+              <tr>
+                <td>Reads via load balancer</td>
+                <td>Isolating heavy read workloads from writes</td>
+                <td>Storage — each replica is a full copy</td>
+              </tr>
+              <tr>
+                <td>Geographic replicas</td>
+                <td>Low-latency reads in different regions</td>
+                <td>Replication lag — reads may be stale</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="warn">
+          <div class="warn-label">⚠ Replication Lag</div>
+          <p>Time between write hitting primary and appearing on replica. Usually milliseconds, sometimes seconds/minutes under heavy write load. <strong>Read-your-write inconsistency:</strong> user updates profile, reads from replica not yet caught up, sees old data. Fix: route user's own reads to primary for N seconds after a write.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 4: PARTITIONING -->
+  <section id="step4">
+    <div class="step-card">
+      <div class="step-header">
+        <div class="step-num" style="background:rgba(245,158,11,0.15);color:#f59e0b;">4</div>
+        <div>
+          <div style="font-weight:700;font-size:1.15rem;">Partitioning</div>
+          <div style="color:var(--text2);font-size:0.85rem;">Split huge tables within the same database.</div>
+        </div>
+        <span class="badge badge-yellow" style="margin-left:auto;">5–10× on huge tables</span>
+      </div>
+      <div class="step-body">
+        <p style="color:var(--text2);font-size:0.92rem;margin-bottom:1.25rem;">Split one large table into smaller physical tables within the <em>same database</em>. The application sees one table — the DB engine queries only relevant partitions.</p>
+
+        <div class="card-grid">
+          <div class="card">
+            <h3>The Problem</h3>
+            <p>10 billion row events table. Query is slow even with a perfect index — the index itself is huge. Partition by month: 24 tables of 400M rows. Query filters by date = touches only the relevant partition.</p>
+          </div>
+          <div class="card">
+            <h3>Benefits</h3>
+            <ul>
+              <li>10B rows → manageable 100M–400M row partitions</li>
+              <li>Queries 10–100× faster on time-series data</li>
+              <li>Drop old data in O(1): <code>DROP PARTITION</code> vs hours-long DELETE</li>
+              <li>VACUUM runs in minutes not days</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>When to Partition</h3>
+            <ul>
+              <li>Table has a natural range column (date, created_at)</li>
+              <li>Queries almost always filter by that column</li>
+              <li>Regular data expiry needed</li>
+              <li>Table is too large for index to fit in memory</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 5: SHARDING -->
+  <section id="step5">
+    <div class="step-card" style="border-color:var(--red);">
+      <div class="step-header" style="background:var(--red-bg);">
+        <div class="step-num" style="background:rgba(239,68,68,0.2);color:#ef4444;">5</div>
+        <div>
+          <div style="font-weight:700;font-size:1.15rem;">Sharding</div>
+          <div style="color:var(--text2);font-size:0.85rem;">Last resort. Permanent decisions. Massive complexity.</div>
+        </div>
+        <span class="badge badge-red" style="margin-left:auto;">LAST RESORT</span>
+      </div>
+      <div class="step-body">
+        <div class="danger">
+          <div class="danger-label">Only When</div>
+          <ul style="padding-left:1.2rem;font-size:0.9rem;color:var(--text2);">
+            <li style="margin-bottom:0.35rem;">Writes have outgrown one primary</li>
+            <li style="margin-bottom:0.35rem;">Read replicas don't help (bottleneck is on the write path)</li>
+            <li style="margin-bottom:0.35rem;">Partitioning done but single partition is still too large</li>
+            <li style="margin-bottom:0.35rem;">Dataset is multi-TB and growing</li>
+          </ul>
+        </div>
+
+        <div class="card-grid">
+          <div class="card">
+            <h3>4 Hard Decisions</h3>
+            <ul>
+              <li><strong>Shard key</strong> — permanent, can't change easily</li>
+              <li><strong>Shard map</strong> — how to route queries to correct shard</li>
+              <li><strong>Cross-shard queries</strong> — how to handle them (expensive)</li>
+              <li><strong>Rebalancing</strong> — when shards grow unevenly</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>When You DON'T Need It</h3>
+            <ul>
+              <li>Haven't exhausted steps 1–4</li>
+              <li>Primary DB CPU under 60%</li>
+              <li>Haven't profiled slow queries</li>
+              <li>Missing indexes (see: the story at the top)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Capacity Summary Table -->
+    <div class="table-wrap" style="margin-top:1.5rem;">
+      <table>
+        <thead>
+          <tr><th>Step</th><th>What It Does</th><th>Approximate Capacity</th><th>Cost</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong style="color:var(--green);">① Indexes</strong></td>
+            <td>Speed up query execution</td>
+            <td>10k–50k QPS baseline</td>
+            <td><span class="badge badge-green">Free</span></td>
+          </tr>
+          <tr>
+            <td><strong style="color:var(--accent2);">② Connection Pooling</strong></td>
+            <td>Multiplex app connections</td>
+            <td>10k–50k QPS (more stable)</td>
+            <td><span class="badge badge-green">Config only</span></td>
+          </tr>
+          <tr>
+            <td><strong style="color:var(--cyan);">③ Read Replicas</strong></td>
+            <td>Distribute read load</td>
+            <td>50k–200k read QPS</td>
+            <td><span class="badge badge-yellow">2–5× DB cost</span></td>
+          </tr>
+          <tr>
+            <td><strong style="color:var(--yellow);">④ Partitioning</strong></td>
+            <td>Tame huge tables</td>
+            <td>5–10× on huge tables</td>
+            <td><span class="badge badge-yellow">Migration effort</span></td>
+          </tr>
+          <tr>
+            <td><strong style="color:var(--red);">⑤ Sharding</strong></td>
+            <td>Horizontal DB scale-out</td>
+            <td>500k+ QPS (10 nodes)</td>
+            <td><span class="badge badge-red">Major complexity</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="quote-block" style="margin-top:1.5rem;">
+      <strong>"Identify actual bottleneck. Apply cheapest fix. Move on."</strong>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <div class="section-title"><div class="num">3</div> Quick Reference</div>
+    <div class="cheatsheet">
+      <div class="cs-title">📋 Database Scaling Cheat Sheet</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>The Sequence</strong>
+          Indexes → Connection Pooling → Read Replicas → Partitioning → Sharding. Do not skip steps.
+        </div>
+        <div class="cs-item">
+          <strong>Indexes First</strong>
+          Free. 4s → 4ms (1000×). Find via pg_stat_statements. EXPLAIN for Seq Scan. Always check first.
+        </div>
+        <div class="cs-item">
+          <strong>Missing Index Types</strong>
+          Foreign keys (not auto-created!). Composite indexes: equality cols first, range cols last.
+        </div>
+        <div class="cs-item">
+          <strong>Index Hygiene</strong>
+          Slow writes. Max ~15 per table. Drop 0-scan indexes via pg_stat_user_indexes.
+        </div>
+        <div class="cs-item">
+          <strong>Connection Pooling</strong>
+          PgBouncer transaction mode: 5000 app → 50 Postgres. One config. Enormous leverage.
+        </div>
+        <div class="cs-item">
+          <strong>Pool Sizing</strong>
+          App-side: CPU cores × 2-3, cap at 20-30. PgBouncer: ~50 connections to Postgres.
+        </div>
+        <div class="cs-item">
+          <strong>Read Replicas</strong>
+          1 primary + 2-5 replicas. Helps reads only. Watch replication lag. Route writes to primary.
+        </div>
+        <div class="cs-item">
+          <strong>Read-Your-Write Fix</strong>
+          Route user's own reads to primary for N seconds after a write.
+        </div>
+        <div class="cs-item">
+          <strong>Partitioning</strong>
+          Same DB server. By date/range. O(1) old data drop. 10-100× on time-series queries.
+        </div>
+        <div class="cs-item">
+          <strong>Sharding Last Resort</strong>
+          4 hard decisions. Shard key is permanent. Don't shard if primary CPU &lt; 60%.
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const btn = document.querySelector('.theme-btn');
+    if (html.getAttribute('data-theme') === 'dark') {
+      html.setAttribute('data-theme', 'light');
+      btn.textContent = '🌙 Dark';
+    } else {
+      html.setAttribute('data-theme', 'dark');
+      btn.textContent = '☀ Light';
+    }
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

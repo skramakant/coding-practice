@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 17 — Consistency Models | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #1e293b; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(248,250,252,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 640px; }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .card p, .card ul { font-size: 0.9rem; color: var(--text2); }
+  .card ul { padding-left: 1.2rem; }
+  .card ul li { margin-bottom: 0.35rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .danger-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 0.4rem; }
+  .success { background: var(--green-bg); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .success-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-purple { background: var(--accent-bg); color: var(--accent2); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  .anecdote { background: var(--bg2); border-left: 4px solid var(--yellow); border-radius: 0 12px 12px 0; padding: 1.25rem 1.5rem; margin: 0 0 1.5rem; }
+  code { background: var(--bg3); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: var(--green); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media(max-width:640px){ .two-col { grid-template-columns: 1fr; } }
+  .model-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; border-left: 4px solid var(--accent); }
+  .model-card.linear { border-left-color: #ef4444; }
+  .model-card.sequential { border-left-color: #f59e0b; }
+  .model-card.causal { border-left-color: #6366f1; }
+  .model-card.eventual { border-left-color: #10b981; }
+  .model-num { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.3rem; }
+  .model-card.linear .model-num { color: #ef4444; }
+  .model-card.sequential .model-num { color: #f59e0b; }
+  .model-card.causal .model-num { color: #6366f1; }
+  .model-card.eventual .model-num { color: #10b981; }
+  .model-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
+  .example-box { background: var(--bg3); border-radius: 8px; padding: 0.75rem; font-size: 0.82rem; margin: 0.5rem 0; font-style: italic; color: var(--text2); }
+  .decision-step { display: flex; gap: 1rem; padding: 1rem; background: var(--bg3); border-radius: 10px; margin-bottom: 0.75rem; align-items: flex-start; }
+  .decision-num { width: 28px; height: 28px; background: var(--accent); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .decision-content { font-size: 0.9rem; }
+  .decision-content strong { color: var(--accent2); }
+</style>
+</head>
+<body>
+<nav>
+  <span class="nav-brand">Day 17 · Consistency Models</span>
+  <div class="nav-links">
+    <a href="#story">Story</a>
+    <a href="#spectrum">Spectrum</a>
+    <a href="#models">5 Models</a>
+    <a href="#cap">CAP & PACELC</a>
+    <a href="#decision">Decision</a>
+    <a href="#traps">Traps</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀️ Light</button>
+</nav>
+
+<div class="page">
+  <div class="hero">
+    <div class="hero-tag">Day 17 of 25 · Scaling & Architecture</div>
+    <h1>Consistency <span>Models</span></h1>
+    <p class="hero-sub">"Consistent" is one of the most overloaded words in distributed systems. "We're strongly consistent" could mean any of 5 different things. Here's what they actually mean.</p>
+  </div>
+
+  <!-- STORY -->
+  <section id="story">
+    <div class="section-title"><div class="num">01</div>The Bitcoin Incident — 2013</div>
+    <div class="anecdote">
+      <strong style="color:var(--yellow)">March 12, 2013 — Bitcoin blockchain splits into two parallel realities</strong>
+      <p style="margin-top:0.5rem;font-size:0.95rem;">For 6 hours, the network ran as two separate chains. Coins spent on one chain didn't exist on the other. Then the network picked a winner and erased the other timeline. Some transactions permanently gone.</p>
+      <p style="margin-top:0.5rem;font-size:0.95rem;">This is what consistency models look like when you can see them. The question every distributed system answers: <strong>when can I read what I wrote from another node?</strong></p>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <h3>Single Machine</h3>
+        <p>Data in one place. Read always sees the latest write. Simple, because there's only one copy and one timeline.</p>
+      </div>
+      <div class="card">
+        <h3>Multiple Machines</h3>
+        <p>Copies exist. Writes happen on one node. Reads happen on another. Network between them is slow and unreliable. Consistency becomes a design choice.</p>
+      </div>
+    </div>
+    <div class="takeaway">
+      <div class="takeaway-label">What a Consistency Model Answers</div>
+      <ul style="padding-left:1.2rem;font-size:0.9rem;">
+        <li>When can I read what I just wrote from another node?</li>
+        <li>Who wins on concurrent writes?</li>
+        <li>What happens if the network breaks mid-operation?</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- SPECTRUM DIAGRAM -->
+  <section id="spectrum">
+    <div class="section-title"><div class="num">02</div>The Consistency Spectrum</div>
+    <div class="svg-wrap">
+      <svg viewBox="0 0 900 400" width="100%" style="max-width:900px;font-family:-apple-system,sans-serif;">
+        <!-- Gradient bar -->
+        <defs>
+          <linearGradient id="specGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#ef4444" stop-opacity="0.8"/>
+            <stop offset="33%" stop-color="#f59e0b" stop-opacity="0.8"/>
+            <stop offset="66%" stop-color="#6366f1" stop-opacity="0.8"/>
+            <stop offset="100%" stop-color="#10b981" stop-opacity="0.8"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Spectrum bar -->
+        <rect x="40" y="40" width="820" height="16" rx="8" fill="url(#specGrad)"/>
+
+        <!-- Arrows -->
+        <text x="40" y="78" fill="#94a3b8" font-size="11">◀ Stronger Consistency</text>
+        <text x="820" y="78" fill="#94a3b8" font-size="11" text-anchor="end">Higher Availability ▶</text>
+
+        <!-- Linearizability -->
+        <line x1="80" y1="56" x2="80" y2="100" stroke="#ef4444" stroke-width="2"/>
+        <rect x="20" y="100" width="160" height="80" rx="10" fill="#1e1010" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="100" y="120" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700">Linearizability</text>
+        <text x="100" y="136" text-anchor="middle" fill="#94a3b8" font-size="9.5">Strongest</text>
+        <text x="100" y="152" text-anchor="middle" fill="#94a3b8" font-size="9">etcd · ZooKeeper</text>
+        <text x="100" y="167" text-anchor="middle" fill="#94a3b8" font-size="9">Spanner · CockroachDB</text>
+
+        <!-- Sequential -->
+        <line x1="280" y1="56" x2="280" y2="100" stroke="#f59e0b" stroke-width="2"/>
+        <rect x="200" y="100" width="160" height="80" rx="10" fill="#1a1608" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="280" y="120" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700">Sequential</text>
+        <text x="280" y="136" text-anchor="middle" fill="#94a3b8" font-size="9.5">Per-client ordering</text>
+        <text x="280" y="152" text-anchor="middle" fill="#94a3b8" font-size="9">Mostly academic</text>
+        <text x="280" y="167" text-anchor="middle" fill="#94a3b8" font-size="9">Worth knowing term</text>
+
+        <!-- Causal -->
+        <line x1="500" y1="56" x2="500" y2="100" stroke="#6366f1" stroke-width="2"/>
+        <rect x="420" y="100" width="160" height="80" rx="10" fill="#0f0f1e" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="500" y="120" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700">Causal</text>
+        <text x="500" y="136" text-anchor="middle" fill="#94a3b8" font-size="9.5">Cause → Effect order</text>
+        <text x="500" y="152" text-anchor="middle" fill="#94a3b8" font-size="9">COPS · Riak configs</text>
+        <text x="500" y="167" text-anchor="middle" fill="#94a3b8" font-size="9">Comments · Messaging</text>
+
+        <!-- Eventual -->
+        <line x1="820" y1="56" x2="820" y2="100" stroke="#10b981" stroke-width="2"/>
+        <rect x="740" y="100" width="140" height="80" rx="10" fill="#0a1810" stroke="#10b981" stroke-width="1.5"/>
+        <text x="810" y="120" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700">Eventual</text>
+        <text x="810" y="136" text-anchor="middle" fill="#94a3b8" font-size="9.5">Weakest / Fastest</text>
+        <text x="810" y="152" text-anchor="middle" fill="#94a3b8" font-size="9">DynamoDB · Cassandra</text>
+        <text x="810" y="167" text-anchor="middle" fill="#94a3b8" font-size="9">Couchbase · S3 · Riak</text>
+
+        <!-- Cost axis -->
+        <text x="450" y="215" text-anchor="middle" fill="#94a3b8" font-size="12" font-weight="600">Latency Cost</text>
+        <rect x="40" y="228" width="820" height="12" rx="6" fill="#2d3448"/>
+        <rect x="40" y="228" width="210" height="12" rx="6" fill="#ef4444" opacity="0.7"/>
+        <text x="145" y="255" text-anchor="middle" fill="#ef4444" font-size="10">1-200ms / write</text>
+        <text x="450" y="255" text-anchor="middle" fill="#f59e0b" font-size="10">Moderate</text>
+        <text x="760" y="255" text-anchor="middle" fill="#10b981" font-size="10">Single-digit ms</text>
+
+        <!-- Use case row -->
+        <text x="450" y="285" text-anchor="middle" fill="#94a3b8" font-size="12" font-weight="600">Use Cases</text>
+
+        <rect x="20" y="298" width="160" height="60" rx="8" fill="#1a1f2e" stroke="#ef4444" stroke-width="1"/>
+        <text x="100" y="316" text-anchor="middle" fill="#e2e8f0" font-size="9">Banking · Inventory</text>
+        <text x="100" y="330" text-anchor="middle" fill="#e2e8f0" font-size="9">Distributed locks</text>
+        <text x="100" y="344" text-anchor="middle" fill="#e2e8f0" font-size="9">Leader election</text>
+
+        <rect x="200" y="298" width="160" height="60" rx="8" fill="#1a1f2e" stroke="#f59e0b" stroke-width="1"/>
+        <text x="280" y="316" text-anchor="middle" fill="#e2e8f0" font-size="9">Mostly theoretical</text>
+        <text x="280" y="330" text-anchor="middle" fill="#e2e8f0" font-size="9">Multi-user editors</text>
+        <text x="280" y="344" text-anchor="middle" fill="#94a3b8" font-size="9">(rarely chosen directly)</text>
+
+        <rect x="420" y="298" width="160" height="60" rx="8" fill="#1a1f2e" stroke="#6366f1" stroke-width="1"/>
+        <text x="500" y="316" text-anchor="middle" fill="#e2e8f0" font-size="9">Comments · Messaging</text>
+        <text x="500" y="330" text-anchor="middle" fill="#e2e8f0" font-size="9">Social feeds</text>
+        <text x="500" y="344" text-anchor="middle" fill="#e2e8f0" font-size="9">WhatsApp-like ordering</text>
+
+        <rect x="720" y="298" width="160" height="60" rx="8" fill="#1a1f2e" stroke="#10b981" stroke-width="1"/>
+        <text x="800" y="316" text-anchor="middle" fill="#e2e8f0" font-size="9">Like counts · Feeds</text>
+        <text x="800" y="330" text-anchor="middle" fill="#e2e8f0" font-size="9">Product catalogs</text>
+        <text x="800" y="344" text-anchor="middle" fill="#e2e8f0" font-size="9">Search indexes</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- 5 MODELS -->
+  <section id="models">
+    <div class="section-title"><div class="num">03</div>The 5 Models in Detail</div>
+
+    <div class="model-card linear">
+      <div class="model-num">Model 1 — Strongest</div>
+      <div class="model-title">Linearizability</div>
+      <p style="font-size:0.9rem;margin-bottom:0.5rem;">Every operation appears to happen at a single moment in time, in an order that matches the real world. The system cannot reorder operations even for efficiency.</p>
+      <div class="example-box">Alice writes X=5 at 10:00:00.001. Bob reads X at 10:00:00.002. Bob <strong>MUST</strong> see 5. No exceptions.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-top:0.75rem;">
+        <div style="background:var(--bg3);border-radius:8px;padding:0.6rem;font-size:0.82rem;">
+          <strong style="color:var(--text2);display:block;font-size:0.72rem;margin-bottom:0.2rem;">How</strong>
+          Single primary or Raft/Paxos consensus
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:0.6rem;font-size:0.82rem;">
+          <strong style="color:var(--text2);display:block;font-size:0.72rem;margin-bottom:0.2rem;">Cost</strong>
+          1-5ms local DC · 50-200ms cross-region
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:0.6rem;font-size:0.82rem;">
+          <strong style="color:var(--text2);display:block;font-size:0.72rem;margin-bottom:0.2rem;">Partition behavior</strong>
+          Minority side stops accepting writes
+        </div>
+      </div>
+      <div style="margin-top:0.5rem;font-size:0.85rem;"><strong>Examples:</strong> <span style="color:var(--text2)">etcd, ZooKeeper, Google Spanner, FaunaDB, CockroachDB</span></div>
+      <div style="margin-top:0.3rem;font-size:0.85rem;"><strong>Use when:</strong> <span style="color:var(--text2)">Banking, inventory limits, distributed locks, leader elections</span></div>
+    </div>
+
+    <div class="model-card sequential">
+      <div class="model-num">Model 2</div>
+      <div class="model-title">Sequential Consistency</div>
+      <p style="font-size:0.9rem;margin-bottom:0.5rem;">Operations from any single client appear in the order that client issued them. The order between <em>different</em> clients can be anything the system likes.</p>
+      <div class="example-box">You issue A then B. Anyone reading sees A before B. But your writes and mine can be interleaved in any order the system chooses.</div>
+      <div style="background:var(--bg3);border-radius:8px;padding:0.6rem;font-size:0.82rem;margin-top:0.5rem;">Less cost than linearizable. More academic than production. Worth knowing the term — it comes up in papers and distributed systems discussions.</div>
+    </div>
+
+    <div class="model-card causal">
+      <div class="model-num">Model 3</div>
+      <div class="model-title">Causal Consistency</div>
+      <p style="font-size:0.9rem;margin-bottom:0.5rem;">Causally related operations happen in the right order. Unrelated operations can happen in any order.</p>
+      <div class="example-box">Alice posts a status. Bob comments on it. The comment is causally after the post. You always see the post before the comment. But Alice's post and Charlie's unrelated post have no causal link — they can appear in any order.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-top:0.5rem;">
+        <div style="background:var(--bg3);border-radius:8px;padding:0.6rem;font-size:0.82rem;">
+          <strong style="color:var(--text2);display:block;font-size:0.72rem;margin-bottom:0.2rem;">Implementation</strong>
+          Vector clocks or session tokens to track causal relationships
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:0.6rem;font-size:0.82rem;">
+          <strong style="color:var(--text2);display:block;font-size:0.72rem;margin-bottom:0.2rem;">Cost</strong>
+          Real overhead but manageable. No global coordination.
+        </div>
+      </div>
+      <div style="margin-top:0.5rem;font-size:0.85rem;"><strong>Examples:</strong> <span style="color:var(--text2)">COPS, some Riak configurations</span></div>
+      <div style="margin-top:0.3rem;font-size:0.85rem;"><strong>Use when:</strong> <span style="color:var(--text2)">Comments, messaging, social feeds, WhatsApp-like ordering</span></div>
+    </div>
+
+    <div class="model-card eventual">
+      <div class="model-num">Model 4 — Weakest / Most Common</div>
+      <div class="model-title">Eventual Consistency</div>
+      <p style="font-size:0.9rem;margin-bottom:0.5rem;">If you stop writing and wait long enough, all replicas agree. No commitment on <em>when</em>. No commitment on intermediate values. No commitment on ordering.</p>
+      <div class="example-box">"Eventually" = usually milliseconds, sometimes seconds, under heavy load = minutes, pathological cases = hours.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-top:0.75rem;">
+        <div style="background:var(--bg3);border-radius:8px;padding:0.6rem;font-size:0.82rem;">
+          <strong style="color:var(--text2);display:block;font-size:0.72rem;margin-bottom:0.2rem;">Cost</strong>
+          Almost nothing. Each node accepts writes locally, gossips asynchronously.
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:0.6rem;font-size:0.82rem;">
+          <strong style="color:var(--text2);display:block;font-size:0.72rem;margin-bottom:0.2rem;">Break: Read-your-writes</strong>
+          Write X=5, immediately read X, get 4 from stale replica
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:0.6rem;font-size:0.82rem;">
+          <strong style="color:var(--text2);display:block;font-size:0.72rem;margin-bottom:0.2rem;">Fix</strong>
+          Sticky sessions — route user reads to node that handled their writes
+        </div>
+      </div>
+      <div style="margin-top:0.5rem;font-size:0.85rem;"><strong>Examples:</strong> <span style="color:var(--text2)">DynamoDB default, Cassandra default, Couchbase, Riak, S3</span></div>
+      <div style="margin-top:0.3rem;font-size:0.85rem;"><strong>Use when:</strong> <span style="color:var(--text2)">Social feeds, like counts, view counts, product recommendations, search indexes — anywhere availability matters more than freshness</span></div>
+    </div>
+  </section>
+
+  <!-- CAP & PACELC -->
+  <section id="cap">
+    <div class="section-title"><div class="num">04</div>CAP Theorem & PACELC</div>
+    <div class="svg-wrap">
+      <svg viewBox="0 0 880 300" width="100%" style="max-width:880px;font-family:-apple-system,sans-serif;">
+        <!-- CAP Section -->
+        <rect x="20" y="10" width="380" height="280" rx="14" fill="none" stroke="#2d3448" stroke-width="1.5"/>
+        <text x="210" y="38" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="700">CAP Theorem</text>
+        <text x="210" y="56" text-anchor="middle" fill="#94a3b8" font-size="10">During a network partition, choose: Consistency or Availability</text>
+
+        <!-- CP box -->
+        <rect x="40" y="72" width="160" height="100" rx="10" fill="rgba(239,68,68,0.1)" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="120" y="94" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="700">CP Systems</text>
+        <text x="120" y="112" text-anchor="middle" fill="#94a3b8" font-size="10">Consistency + Partition</text>
+        <text x="120" y="128" text-anchor="middle" fill="#94a3b8" font-size="9">Minority side stops writes</text>
+        <text x="120" y="144" text-anchor="middle" fill="#94a3b8" font-size="9">Spanner · etcd · ZooKeeper</text>
+        <text x="120" y="160" text-anchor="middle" fill="#94a3b8" font-size="9">CockroachDB</text>
+
+        <!-- AP box -->
+        <rect x="220" y="72" width="160" height="100" rx="10" fill="rgba(16,185,129,0.1)" stroke="#10b981" stroke-width="1.5"/>
+        <text x="300" y="94" text-anchor="middle" fill="#10b981" font-size="12" font-weight="700">AP Systems</text>
+        <text x="300" y="112" text-anchor="middle" fill="#94a3b8" font-size="10">Availability + Partition</text>
+        <text x="300" y="128" text-anchor="middle" fill="#94a3b8" font-size="9">Both sides keep writing</text>
+        <text x="300" y="144" text-anchor="middle" fill="#94a3b8" font-size="9">DynamoDB · Cassandra</text>
+        <text x="300" y="160" text-anchor="middle" fill="#94a3b8" font-size="9">Couchbase · Riak</text>
+
+        <rect x="60" y="190" width="280" height="40" rx="8" fill="var(--red-bg)" stroke="#ef4444" stroke-width="1"/>
+        <text x="200" y="208" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="600">No "CA" option exists</text>
+        <text x="200" y="222" text-anchor="middle" fill="#94a3b8" font-size="9.5">Networks partition. It's not a choice you get to make.</text>
+
+        <text x="210" y="265" text-anchor="middle" fill="#94a3b8" font-size="9.5">Partition tolerance is not optional in distributed systems</text>
+
+        <!-- PACELC Section -->
+        <rect x="460" y="10" width="400" height="280" rx="14" fill="none" stroke="#2d3448" stroke-width="1.5"/>
+        <text x="660" y="38" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="700">PACELC — The Extension</text>
+        <text x="660" y="56" text-anchor="middle" fill="#94a3b8" font-size="10">What about during NORMAL operations? (no partition)</text>
+
+        <rect x="480" y="68" width="360" height="46" rx="8" fill="var(--bg3)"/>
+        <text x="660" y="88" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">If Partitioned: PA vs PC</text>
+        <text x="660" y="104" text-anchor="middle" fill="#94a3b8" font-size="9.5">PA = serve available (AP) &nbsp;&nbsp; PC = stay consistent (CP)</text>
+
+        <rect x="480" y="125" width="360" height="46" rx="8" fill="var(--bg3)"/>
+        <text x="660" y="145" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">Else: EL vs EC</text>
+        <text x="660" y="161" text-anchor="middle" fill="#94a3b8" font-size="9.5">EL = lower latency (eventual) &nbsp;&nbsp; EC = consistent reads</text>
+
+        <rect x="480" y="182" width="160" height="58" rx="8" fill="rgba(16,185,129,0.08)" stroke="#10b981" stroke-width="1"/>
+        <text x="560" y="200" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600">PA/EL (Most DBs)</text>
+        <text x="560" y="216" text-anchor="middle" fill="#94a3b8" font-size="9">DynamoDB · Cassandra</text>
+        <text x="560" y="230" text-anchor="middle" fill="#94a3b8" font-size="9">Eventual consistency</text>
+
+        <rect x="660" y="182" width="160" height="58" rx="8" fill="rgba(239,68,68,0.08)" stroke="#ef4444" stroke-width="1"/>
+        <text x="740" y="200" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="600">PC/EC (Spanner)</text>
+        <text x="740" y="216" text-anchor="middle" fill="#94a3b8" font-size="9">Always consistent</text>
+        <text x="740" y="230" text-anchor="middle" fill="#94a3b8" font-size="9">Accept the latency</text>
+
+        <text x="660" y="268" text-anchor="middle" fill="#94a3b8" font-size="9.5">PACELC captures the latency vs consistency tradeoff in normal ops</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- DECISION -->
+  <section id="decision">
+    <div class="section-title"><div class="num">05</div>Decision Framework</div>
+    <div class="decision-step">
+      <div class="decision-num">1</div>
+      <div class="decision-content"><strong>What if a read returns slightly stale data?</strong><br>"User sees yesterday's like count = fine" → <strong style="color:var(--green)">eventual consistency</strong>. "We double-charge a customer" → <strong style="color:var(--red)">strong consistency for that path</strong>.</div>
+    </div>
+    <div class="decision-step">
+      <div class="decision-num">2</div>
+      <div class="decision-content"><strong>What happens during a partition?</strong><br>"Keep taking orders, sort it out later" → <strong style="color:var(--green)">AP</strong>. "Refuse rather than risk double-counting inventory" → <strong style="color:var(--red)">CP</strong>.</div>
+    </div>
+    <div class="decision-step">
+      <div class="decision-num">3</div>
+      <div class="decision-content"><strong>What's your latency budget?</strong><br>Strong consistency across regions = 100-200ms per write. Eventual consistency = single-digit milliseconds.</div>
+    </div>
+
+    <div class="takeaway">
+      <div class="takeaway-label">💡 Real Systems Mix Models</div>
+      <p style="font-size:0.9rem;">Same database, different per-operation settings. <strong>Shopping cart</strong> = eventual. <strong>Checkout</strong> = strong. <strong>Order history</strong> = causal. Don't set the whole system to strong "to be safe" — you pay latency everywhere for properties most operations don't need.</p>
+    </div>
+  </section>
+
+  <!-- TRAPS -->
+  <section id="traps">
+    <div class="section-title"><div class="num">06</div>Common Traps</div>
+    <div class="danger">
+      <div class="danger-label">❌ Watch Out For</div>
+      <ul style="padding-left:1.2rem;font-size:0.9rem;display:grid;gap:0.4rem;">
+        <li><strong>"We're consistent"</strong> — without specifying which kind. Linearizable? Sequential? Causal? This tells you nothing.</li>
+        <li><strong>Read-your-own-write bugs</strong> — user updates their profile, refreshes, sees old data. Classic eventual consistency footgun in production.</li>
+        <li><strong>"Cross-region writes completing in 5ms"</strong> — the speed of light says no. If your cross-region writes complete in 5ms, you don't have strong consistency. Something is lying to you.</li>
+        <li><strong>No conflict resolution strategy</strong> — if your AP system accepts concurrent writes on both sides of a partition, what happens when the partition heals? "Last write wins" silently discards data.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <div class="section-title"><div class="num">07</div>Quick Reference</div>
+    <div class="cheatsheet">
+      <div class="cs-title">⚡ Consistency Models Cheat Sheet</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>Linearizability</strong>
+          Strongest. Every op has a single point in real time. etcd, ZooKeeper, Spanner. 1-200ms cost.
+        </div>
+        <div class="cs-item">
+          <strong>Sequential Consistency</strong>
+          Per-client ordering preserved. Global order is anything. More academic. Worth knowing term.
+        </div>
+        <div class="cs-item">
+          <strong>Causal Consistency</strong>
+          Cause → Effect ordering only. Unrelated ops = any order. Vector clocks. COPS, Riak.
+        </div>
+        <div class="cs-item">
+          <strong>Eventual Consistency</strong>
+          All replicas converge eventually. No timing guarantee. DynamoDB, Cassandra, S3.
+        </div>
+        <div class="cs-item">
+          <strong>CAP: CP</strong>
+          Consistency + Partition tolerance. Minority side stops on split. Spanner, etcd, ZooKeeper.
+        </div>
+        <div class="cs-item">
+          <strong>CAP: AP</strong>
+          Availability + Partition tolerance. Both sides keep writing, diverge. DynamoDB, Cassandra.
+        </div>
+        <div class="cs-item">
+          <strong>CAP: No CA</strong>
+          Networks partition. Partition tolerance is not optional. "CA" is not a real option.
+        </div>
+        <div class="cs-item">
+          <strong>PACELC</strong>
+          Extends CAP to normal ops. PA/EL (most DBs) vs PC/EC (Spanner). Latency vs consistency.
+        </div>
+        <div class="cs-item">
+          <strong>Mix models</strong>
+          Shopping cart = eventual. Checkout = strong. Order history = causal. Per-operation is fine.
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+function toggleTheme() {
+  const html = document.documentElement;
+  const btn = document.querySelector('.theme-btn');
+  if (html.dataset.theme === 'dark') {
+    html.dataset.theme = 'light';
+    btn.textContent = '🌙 Dark';
+  } else {
+    html.dataset.theme = 'dark';
+    btn.textContent = '☀️ Light';
+  }
+}
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.08 });
+document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

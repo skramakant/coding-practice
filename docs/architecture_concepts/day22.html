@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 22 — Back-of-the-Envelope Estimation | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #1e293b; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(248,250,252,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 640px; }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .card p, .card ul { font-size: 0.9rem; color: var(--text2); }
+  .card ul { padding-left: 1.2rem; }
+  .card ul li { margin-bottom: 0.35rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .danger-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 0.4rem; }
+  .success { background: var(--green-bg); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .success-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-purple { background: var(--accent-bg); color: var(--accent2); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  .anecdote { background: var(--bg2); border-left: 4px solid var(--yellow); border-radius: 0 12px 12px 0; padding: 1.25rem 1.5rem; margin: 0 0 1.5rem; }
+  code { background: var(--bg3); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: var(--green); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media(max-width:640px){ .two-col { grid-template-columns: 1fr; } }
+  .rule-item { display: flex; gap: 1rem; padding: 0.85rem 1rem; background: var(--bg3); border-radius: 10px; margin-bottom: 0.6rem; align-items: flex-start; }
+  .rule-num { width: 26px; height: 26px; background: var(--accent); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; flex-shrink: 0; }
+  .rule-text { font-size: 0.9rem; }
+  .rule-text strong { color: var(--accent2); }
+  .calc-box { background: var(--bg3); border-radius: 10px; padding: 1.25rem; font-family: monospace; font-size: 0.88rem; line-height: 1.8; }
+  .calc-step { display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 0.25rem; }
+  .calc-step .label { color: var(--text2); font-size: 0.78rem; min-width: 140px; font-family: sans-serif; }
+  .calc-step .val { color: var(--green); font-weight: 600; }
+  .calc-step .note { color: var(--text2); font-size: 0.75rem; font-family: sans-serif; }
+  .latency-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.75rem; border-radius: 8px; margin-bottom: 0.4rem; font-size: 0.9rem; }
+  .latency-row:nth-child(odd) { background: var(--bg3); }
+  .latency-bar { height: 8px; border-radius: 4px; background: var(--accent); flex-shrink: 0; }
+  .latency-label { min-width: 220px; font-size: 0.85rem; color: var(--text); }
+  .latency-val { font-family: monospace; font-weight: 700; min-width: 80px; }
+</style>
+</head>
+<body>
+<nav>
+  <span class="nav-brand">Day 22 · Back-of-the-Envelope</span>
+  <div class="nav-links">
+    <a href="#story">Why It Matters</a>
+    <a href="#numbers">Numbers to Know</a>
+    <a href="#latency-diagram">Latency Diagram</a>
+    <a href="#process">6-Step Process</a>
+    <a href="#example">Worked Example</a>
+    <a href="#fanout">Fan-Out</a>
+    <a href="#traps">Traps</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀️ Light</button>
+</nav>
+
+<div class="page">
+  <div class="hero">
+    <div class="hero-tag">Day 22 of 25 · Scaling & Architecture</div>
+    <h1>Back-of-the-Envelope <span>Estimation</span></h1>
+    <p class="hero-sub">"Back-of-the-envelope estimation is how experienced engineers avoid building the wrong system. Ten minutes with a whiteboard rules out half the proposed architectures."</p>
+  </div>
+
+  <!-- WHY IT MATTERS -->
+  <section id="story">
+    <div class="section-title"><div class="num">01</div>Why It Matters</div>
+    <div class="anecdote">
+      <strong style="color:var(--yellow)">The Whiteboard Ritual at Large Tech Companies</strong>
+      <p style="margin-top:0.5rem;font-size:0.95rem;">Before any serious design discussion, someone writes numbers on the whiteboard: requests per second? Data per day? Machine disk size? Network round trip latency?</p>
+      <p style="margin-top:0.5rem;font-size:0.95rem;">Ten minutes later, half the proposed architectures are already ruled out. Not ideology or preference — the arithmetic doesn't work.</p>
+    </div>
+    <div class="takeaway">
+      <div class="takeaway-label">Definition</div>
+      <p><strong>Back-of-the-envelope = Fermi estimation applied to software.</strong> Approximate important quantities using orders of magnitude, known constants, simple multiplication. Goal: within 10x (not 5%). Often enough to reject a design or choose between options.</p>
+    </div>
+    <div class="card-grid" style="margin-top:1rem;">
+      <div class="card">
+        <h3>Typical Questions It Answers</h3>
+        <ul>
+          <li>Can this fit on one machine?</li>
+          <li>Need sharding on day one?</li>
+          <li>Is the bandwidth bill absurd?</li>
+          <li>Is latency budget spent before writing code?</li>
+          <li>How many machines at peak load?</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>What It Is NOT</h3>
+        <ul>
+          <li>Not a substitute for load testing</li>
+          <li>Not precise forecasting for finance</li>
+          <li>Not an excuse to ignore measurement once system exists</li>
+          <li>It's a <strong style="color:var(--accent)">FILTER</strong> — removes impossible and absurd designs early</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- NUMBERS TO KNOW -->
+  <section id="numbers">
+    <div class="section-title"><div class="num">02</div>Numbers to Know by Heart</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;">
+      <!-- Latency -->
+      <div class="card">
+        <h3 style="color:var(--accent2);margin-bottom:1rem;">⚡ Latency Numbers</h3>
+        <div class="table-wrap" style="margin:0;">
+          <table>
+            <thead><tr><th>Operation</th><th>Latency</th></tr></thead>
+            <tbody>
+              <tr><td>L1 cache reference</td><td style="font-family:monospace;color:var(--green);font-weight:700;">~1 ns</td></tr>
+              <tr><td>Main memory reference</td><td style="font-family:monospace;color:var(--green);font-weight:700;">~100 ns</td></tr>
+              <tr><td>SSD random read</td><td style="font-family:monospace;color:var(--cyan);font-weight:700;">~100 μs</td></tr>
+              <tr><td>HDD random seek</td><td style="font-family:monospace;color:var(--yellow);font-weight:700;">~10 ms</td></tr>
+              <tr><td>Network RT same datacenter</td><td style="font-family:monospace;color:var(--yellow);font-weight:700;">~0.5 ms</td></tr>
+              <tr><td>Network RT across US</td><td style="font-family:monospace;color:var(--red);font-weight:700;">50–100 ms</td></tr>
+              <tr><td>Network RT intercontinental</td><td style="font-family:monospace;color:var(--red);font-weight:700;">100–300 ms</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Throughput -->
+      <div class="card">
+        <h3 style="color:var(--accent2);margin-bottom:1rem;">🚀 Throughput & Capacity</h3>
+        <div class="table-wrap" style="margin:0;">
+          <table>
+            <thead><tr><th>Resource</th><th>Capacity</th></tr></thead>
+            <tbody>
+              <tr><td>Modern CPU core</td><td style="font-family:monospace;color:var(--green);font-weight:700;">10⁸–10⁹ ops/s</td></tr>
+              <tr><td>Sequential disk read</td><td style="font-family:monospace;color:var(--cyan);font-weight:700;">100s MB/s – few GB/s</td></tr>
+              <tr><td>1 Gbps network link</td><td style="font-family:monospace;color:var(--cyan);font-weight:700;">~100 MB/s</td></tr>
+              <tr><td>10 Gbps link</td><td style="font-family:monospace;color:var(--cyan);font-weight:700;">~1 GB/s</td></tr>
+              <tr><td>Cloud VM local SSD</td><td style="font-family:monospace;color:var(--yellow);font-weight:700;">tens of K random IOPS</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Storage -->
+      <div class="card">
+        <h3 style="color:var(--accent2);margin-bottom:1rem;">💾 Storage Scale</h3>
+        <div class="table-wrap" style="margin:0;">
+          <table>
+            <thead><tr><th>Unit</th><th>Bytes</th></tr></thead>
+            <tbody>
+              <tr><td>1 KB</td><td style="font-family:monospace;color:var(--green);font-weight:700;">≈ 10³</td></tr>
+              <tr><td>1 MB</td><td style="font-family:monospace;color:var(--green);font-weight:700;">≈ 10⁶</td></tr>
+              <tr><td>1 GB</td><td style="font-family:monospace;color:var(--cyan);font-weight:700;">≈ 10⁹</td></tr>
+              <tr><td>1 TB</td><td style="font-family:monospace;color:var(--yellow);font-weight:700;">≈ 10¹²</td></tr>
+              <tr><td>1 PB</td><td style="font-family:monospace;color:var(--red);font-weight:700;">≈ 10¹⁵</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top:1rem;background:var(--bg3);border-radius:8px;padding:0.85rem;">
+          <div style="font-size:0.78rem;color:var(--text2);margin-bottom:0.4rem;">⏱ Time constants</div>
+          <div style="font-size:0.88rem;">Seconds/day: <code>~10⁵</code> (86,400)</div>
+          <div style="font-size:0.88rem;margin-top:0.3rem;">Seconds/year: <code>~π × 10⁷</code> (≈ 31.5M)</div>
+        </div>
+      </div>
+    </div>
+    <div class="takeaway" style="margin-top:1rem;">
+      <div class="takeaway-label">Key Formula</div>
+      <p style="font-family:monospace;font-size:1.05rem;color:var(--accent2);">QPS ≈ (DAU × actions per user) / seconds per day</p>
+      <p style="margin-top:0.4rem;font-size:0.9rem;color:var(--text2);">DAU = daily active users. Use 10⁵ for seconds per day. Round everything aggressively.</p>
+    </div>
+  </section>
+
+  <!-- LATENCY SPECTRUM DIAGRAM -->
+  <section id="latency-diagram">
+    <div class="section-title"><div class="num">03</div>Latency Spectrum Diagram</div>
+    <div class="svg-wrap">
+      <svg width="860" height="340" viewBox="0 0 860 340" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;">
+        <defs>
+          <linearGradient id="spectrumGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#10b981"/>
+            <stop offset="40%" style="stop-color:#06b6d4"/>
+            <stop offset="70%" style="stop-color:#f59e0b"/>
+            <stop offset="100%" style="stop-color:#ef4444"/>
+          </linearGradient>
+        </defs>
+
+        <text x="430" y="25" text-anchor="middle" fill="#e2e8f0" font-size="14" font-weight="700" font-family="sans-serif">Latency Spectrum: From CPU Cache to Intercontinental Network</text>
+
+        <!-- Spectrum bar -->
+        <rect x="60" y="50" width="780" height="20" rx="10" fill="url(#spectrumGrad)" opacity="0.9"/>
+        <text x="60" y="85" fill="#10b981" font-size="10" font-family="sans-serif" font-weight="600">FAST</text>
+        <text x="810" y="85" text-anchor="end" fill="#ef4444" font-size="10" font-family="sans-serif" font-weight="600">SLOW</text>
+        <text x="435" y="85" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">← 9 orders of magnitude (10⁹x range) →</text>
+
+        <!-- L1 Cache: 1ns -->
+        <line x1="80" y1="70" x2="80" y2="105" stroke="#10b981" stroke-width="1.5"/>
+        <rect x="50" y="105" width="120" height="48" rx="6" fill="#1a1f2e" stroke="#10b981" stroke-width="1.5"/>
+        <text x="110" y="121" text-anchor="middle" fill="#10b981" font-size="10" font-weight="700" font-family="sans-serif">L1 Cache</text>
+        <text x="110" y="136" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700" font-family="monospace">~1 ns</text>
+        <text x="110" y="149" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">10⁰ ns</text>
+
+        <!-- Main memory: 100ns -->
+        <line x1="170" y1="70" x2="170" y2="165" stroke="#06b6d4" stroke-width="1.5"/>
+        <rect x="130" y="165" width="120" height="48" rx="6" fill="#1a1f2e" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="190" y="181" text-anchor="middle" fill="#06b6d4" font-size="10" font-weight="700" font-family="sans-serif">Main Memory</text>
+        <text x="190" y="196" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700" font-family="monospace">~100 ns</text>
+        <text x="190" y="209" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">10² ns</text>
+
+        <!-- SSD: 100μs -->
+        <line x1="350" y1="70" x2="350" y2="105" stroke="#06b6d4" stroke-width="1.5"/>
+        <rect x="295" y="105" width="120" height="48" rx="6" fill="#1a1f2e" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="355" y="121" text-anchor="middle" fill="#06b6d4" font-size="10" font-weight="700" font-family="sans-serif">SSD Random Read</text>
+        <text x="355" y="136" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700" font-family="monospace">~100 μs</text>
+        <text x="355" y="149" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">10⁵ ns</text>
+
+        <!-- HDD: 10ms -->
+        <line x1="520" y1="70" x2="520" y2="165" stroke="#f59e0b" stroke-width="1.5"/>
+        <rect x="465" y="165" width="120" height="48" rx="6" fill="#1a1f2e" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="525" y="181" text-anchor="middle" fill="#f59e0b" font-size="10" font-weight="700" font-family="sans-serif">HDD Random Seek</text>
+        <text x="525" y="196" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700" font-family="monospace">~10 ms</text>
+        <text x="525" y="209" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">10⁷ ns</text>
+
+        <!-- Same DC: 0.5ms -->
+        <line x1="620" y1="70" x2="620" y2="105" stroke="#f59e0b" stroke-width="1.5"/>
+        <rect x="565" y="105" width="120" height="48" rx="6" fill="#1a1f2e" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="625" y="121" text-anchor="middle" fill="#f59e0b" font-size="10" font-weight="700" font-family="sans-serif">Same Datacenter</text>
+        <text x="625" y="136" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700" font-family="monospace">~0.5 ms</text>
+        <text x="625" y="149" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">Network RT</text>
+
+        <!-- Intercontinental: 100-300ms -->
+        <line x1="800" y1="70" x2="800" y2="165" stroke="#ef4444" stroke-width="1.5"/>
+        <rect x="720" y="165" width="130" height="48" rx="6" fill="#1a1f2e" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="785" y="181" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="700" font-family="sans-serif">Intercontinental</text>
+        <text x="785" y="196" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700" font-family="monospace">100–300 ms</text>
+        <text x="785" y="209" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">Network RT</td>
+
+        <!-- Key insight boxes -->
+        <rect x="60" y="250" width="740" height="75" rx="10" fill="#1a1f2e" stroke="#2d3448" stroke-width="1"/>
+        <text x="430" y="272" text-anchor="middle" fill="#818cf8" font-size="12" font-weight="700" font-family="sans-serif">Design Implications</text>
+        <text x="90" y="292" fill="#94a3b8" font-size="10" font-family="sans-serif">• L1→Memory: 100x gap — cache misses are expensive</text>
+        <text x="90" y="308" fill="#94a3b8" font-size="10" font-family="sans-serif">• Memory→SSD: 1000x gap — avoid random disk I/O on critical path</text>
+        <text x="430" y="292" fill="#94a3b8" font-size="10" font-family="sans-serif">• Intra-DC→Cross-US: 200x gap — cross-region calls break 100ms budgets</text>
+        <text x="430" y="308" fill="#94a3b8" font-size="10" font-family="sans-serif">• HDD→Network DC: local SSD &gt; same-DC network for random access</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- 6-STEP PROCESS -->
+  <section id="process">
+    <div class="section-title"><div class="num">04</div>A Simple 6-Step Process</div>
+    <div class="rule-item">
+      <div class="rule-num">1</div>
+      <div class="rule-text"><strong>Clarify what you're estimating.</strong> QPS? Storage after 5 years? Bandwidth? Number of machines? Be explicit — different metrics need different inputs.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">2</div>
+      <div class="rule-text"><strong>Identify the drivers.</strong> User count, event size, retention period, replication factor, peak-to-average ratio. List them explicitly before multiplying.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">3</div>
+      <div class="rule-text"><strong>Use round numbers.</strong> 10M users, not 9.4M. 1KB per event, not 874 bytes. Round numbers compound cleanly and reveal the order of magnitude clearly.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">4</div>
+      <div class="rule-text"><strong>Work in orders of magnitude first.</strong> Is this a 10³, 10⁶, or 10⁹ problem? Get the exponent right before worrying about the coefficient.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">5</div>
+      <div class="rule-text"><strong>Sanity-check against known systems.</strong> More write QPS than a single Postgres primary can handle? More storage than a typical shard? More network than a 10Gbps link?</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">6</div>
+      <div class="rule-text"><strong>Call out soft spots explicitly.</strong> "If average image size is 2MB instead of 200KB, storage is 10x higher." Make assumptions visible so they can be challenged.</div>
+    </div>
+  </section>
+
+  <!-- WORKED EXAMPLE -->
+  <section id="example">
+    <div class="section-title"><div class="num">05</div>Worked Example — URL Shortener</div>
+    <div class="card" style="margin-bottom:1rem;">
+      <h3 style="color:var(--accent2);margin-bottom:1rem;">Assumptions (state these first)</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.75rem;">
+        <div style="background:var(--bg3);border-radius:8px;padding:0.85rem;">
+          <div style="font-size:0.75rem;color:var(--text2);">New URLs</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--accent);">100M / month</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:0.85rem;">
+          <div style="font-size:0.75rem;color:var(--text2);">Retention</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--accent);">5 years</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:0.85rem;">
+          <div style="font-size:0.75rem;color:var(--text2);">Entry size</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--accent);">300 bytes</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:0.85rem;">
+          <div style="font-size:0.75rem;color:var(--text2);">Read:Write ratio</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--accent);">10:1</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:0.85rem;">
+          <div style="font-size:0.75rem;color:var(--text2);">Peak multiplier</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--accent);">2x average</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SVG Calculation Walkthrough -->
+    <div class="svg-wrap">
+      <svg width="860" height="380" viewBox="0 0 860 380" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;">
+        <text x="430" y="25" text-anchor="middle" fill="#e2e8f0" font-size="14" font-weight="700" font-family="sans-serif">URL Shortener: Calculation Walkthrough</text>
+
+        <!-- Storage Calculation Box -->
+        <rect x="30" y="40" width="380" height="240" rx="12" fill="#1a1f2e" stroke="#6366f1" stroke-width="1.5"/>
+        <rect x="30" y="40" width="380" height="36" rx="12 12 0 0" fill="rgba(99,102,241,0.2)"/>
+        <text x="220" y="63" text-anchor="middle" fill="#818cf8" font-size="12" font-weight="700" font-family="sans-serif">💾 Storage Calculation</text>
+
+        <text x="50" y="95" fill="#94a3b8" font-size="10" font-family="sans-serif">Step 1: Total URLs</text>
+        <text x="390" y="95" text-anchor="end" fill="#e2e8f0" font-size="10" font-family="monospace">100M × 12 months × 5 years</text>
+        <line x1="50" y1="100" x2="390" y2="100" stroke="#2d3448" stroke-width="0.5"/>
+
+        <text x="50" y="120" fill="#10b981" font-size="11" font-weight="700" font-family="monospace">= 6,000,000,000 URLs (6B)</text>
+
+        <text x="50" y="145" fill="#94a3b8" font-size="10" font-family="sans-serif">Step 2: Raw storage</text>
+        <text x="390" y="145" text-anchor="end" fill="#e2e8f0" font-size="10" font-family="monospace">6B × 300 bytes</text>
+        <line x1="50" y1="150" x2="390" y2="150" stroke="#2d3448" stroke-width="0.5"/>
+
+        <text x="50" y="170" fill="#10b981" font-size="11" font-weight="700" font-family="monospace">= 1.8 TB</text>
+
+        <text x="50" y="195" fill="#94a3b8" font-size="10" font-family="sans-serif">Step 3: With 3x replication</text>
+        <text x="390" y="195" text-anchor="end" fill="#e2e8f0" font-size="10" font-family="monospace">1.8 TB × 3</text>
+        <line x1="50" y1="200" x2="390" y2="200" stroke="#2d3448" stroke-width="0.5"/>
+
+        <text x="50" y="220" fill="#10b981" font-size="11" font-weight="700" font-family="monospace">= ~5–6 TB</text>
+
+        <rect x="50" y="233" width="340" height="34" rx="6" fill="rgba(16,185,129,0.12)" stroke="#10b981" stroke-width="1"/>
+        <text x="220" y="249" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600" font-family="sans-serif">✓ Fits on a few machines.</text>
+        <text x="220" y="262" text-anchor="middle" fill="#10b981" font-size="10" font-family="sans-serif">Sharding NOT forced by storage alone.</text>
+
+        <!-- QPS Calculation Box -->
+        <rect x="450" y="40" width="380" height="240" rx="12" fill="#1a1f2e" stroke="#06b6d4" stroke-width="1.5"/>
+        <rect x="450" y="40" width="380" height="36" rx="12 12 0 0" fill="rgba(6,182,212,0.2)"/>
+        <text x="640" y="63" text-anchor="middle" fill="#06b6d4" font-size="12" font-weight="700" font-family="sans-serif">⚡ QPS Calculation</text>
+
+        <text x="470" y="95" fill="#94a3b8" font-size="10" font-family="sans-serif">Step 1: Avg write QPS</text>
+        <text x="810" y="95" text-anchor="end" fill="#e2e8f0" font-size="10" font-family="monospace">100M / (30 × 86,400s)</text>
+        <line x1="470" y1="100" x2="810" y2="100" stroke="#2d3448" stroke-width="0.5"/>
+
+        <text x="470" y="120" fill="#10b981" font-size="11" font-weight="700" font-family="monospace">≈ 40 writes/sec (avg)</text>
+
+        <text x="470" y="145" fill="#94a3b8" font-size="10" font-family="sans-serif">Step 2: Peak writes (2x)</text>
+        <text x="810" y="145" text-anchor="end" fill="#e2e8f0" font-size="10" font-family="monospace">40 × 2</text>
+        <line x1="470" y1="150" x2="810" y2="150" stroke="#2d3448" stroke-width="0.5"/>
+
+        <text x="470" y="170" fill="#f59e0b" font-size="11" font-weight="700" font-family="monospace">= 80 writes/sec (peak)</text>
+
+        <text x="470" y="195" fill="#94a3b8" font-size="10" font-family="sans-serif">Step 3: Peak reads (10:1)</text>
+        <text x="810" y="195" text-anchor="end" fill="#e2e8f0" font-size="10" font-family="monospace">80 × 10</text>
+        <line x1="470" y1="200" x2="810" y2="200" stroke="#2d3448" stroke-width="0.5"/>
+
+        <text x="470" y="220" fill="#f59e0b" font-size="11" font-weight="700" font-family="monospace">= 800 reads/sec (peak)</text>
+
+        <rect x="470" y="233" width="340" height="34" rx="6" fill="rgba(16,185,129,0.12)" stroke="#10b981" stroke-width="1"/>
+        <text x="640" y="249" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600" font-family="sans-serif">✓ Single DB primary handles this.</text>
+        <text x="640" y="262" text-anchor="middle" fill="#10b981" font-size="10" font-family="sans-serif">Horizontal write scaling NOT needed day one.</text>
+
+        <!-- Conclusion -->
+        <rect x="30" y="298" width="800" height="65" rx="10" fill="rgba(99,102,241,0.1)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="430" y="320" text-anchor="middle" fill="#818cf8" font-size="12" font-weight="700" font-family="sans-serif">📊 Conclusion: 10 minutes saved a multi-day debate about premature sharding</text>
+        <text x="430" y="340" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="sans-serif">Entry size assumption (300 bytes) is the soft spot — if avg URL is longer, revisit.</text>
+        <text x="430" y="356" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="sans-serif">If read QPS grows to 100k+, add read replicas before reconsidering the write path.</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- FAN-OUT AND DESIGN CHANGES -->
+  <section id="fanout">
+    <div class="section-title"><div class="num">06</div>When Estimates Change the Design</div>
+
+    <!-- Fan-out SVG -->
+    <div class="svg-wrap">
+      <svg width="860" height="280" viewBox="0 0 860 280" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;">
+        <text x="430" y="22" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="700" font-family="sans-serif">Fan-Out: When Simple Math Rules Out a Design</text>
+
+        <!-- Social post scenario -->
+        <rect x="20" y="40" width="380" height="220" rx="12" fill="#1a1f2e" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="210" y="63" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700" font-family="sans-serif">❌ Synchronous Fan-Out (Bad)</text>
+
+        <rect x="160" y="75" width="100" height="36" rx="8" fill="rgba(99,102,241,0.2)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="210" y="97" text-anchor="middle" fill="#818cf8" font-size="10" font-weight="600" font-family="sans-serif">Post Published</text>
+
+        <!-- Fan out lines -->
+        <line x1="140" y1="111" x2="70" y2="145" stroke="#ef4444" stroke-width="1.5"/>
+        <line x1="175" y1="111" x2="140" y2="145" stroke="#ef4444" stroke-width="1.5"/>
+        <line x1="210" y1="111" x2="210" y2="145" stroke="#ef4444" stroke-width="1.5"/>
+        <line x1="245" y1="111" x2="280" y2="145" stroke="#ef4444" stroke-width="1.5"/>
+        <line x1="280" y1="111" x2="350" y2="145" stroke="#ef4444" stroke-width="1.5"/>
+
+        <text x="210" y="133" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">write to each follower timeline</text>
+
+        <rect x="40" y="145" width="60" height="28" rx="5" fill="#1a1f2e" stroke="#2d3448" stroke-width="1"/>
+        <text x="70" y="163" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">User 1</text>
+        <rect x="110" y="145" width="60" height="28" rx="5" fill="#1a1f2e" stroke="#2d3448" stroke-width="1"/>
+        <text x="140" y="163" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">User 2</text>
+        <rect x="180" y="145" width="60" height="28" rx="5" fill="#1a1f2e" stroke="#2d3448" stroke-width="1"/>
+        <text x="210" y="163" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">User 3</text>
+        <rect x="250" y="145" width="60" height="28" rx="5" fill="#1a1f2e" stroke="#2d3448" stroke-width="1"/>
+        <text x="280" y="163" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">User 4</text>
+        <rect x="320" y="145" width="60" height="28" rx="5" fill="#1a1f2e" stroke="#2d3448" stroke-width="1"/>
+        <text x="350" y="163" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">…1M</text>
+
+        <rect x="40" y="188" width="340" height="58" rx="6" fill="rgba(239,68,68,0.1)" stroke="#ef4444" stroke-width="1"/>
+        <text x="210" y="207" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="600" font-family="sans-serif">1 post × 1M followers = 1,000,000 writes</text>
+        <text x="210" y="222" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">At 10 posts/sec → 10M writes/sec sustained</text>
+        <text x="210" y="237" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600" font-family="sans-serif">This design collapses under modest load</text>
+
+        <!-- Good design -->
+        <rect x="460" y="40" width="380" height="220" rx="12" fill="#1a1f2e" stroke="#10b981" stroke-width="1.5"/>
+        <text x="650" y="63" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700" font-family="sans-serif">✓ Fan-Out on Read / Hybrid (Better)</text>
+
+        <rect x="600" y="75" width="100" height="36" rx="8" fill="rgba(99,102,241,0.2)" stroke="#6366f1" stroke-width="1.5"/>
+        <text x="650" y="97" text-anchor="middle" fill="#818cf8" font-size="10" font-weight="600" font-family="sans-serif">Post Published</text>
+
+        <line x1="650" y1="111" x2="650" y2="145" stroke="#10b981" stroke-width="1.5"/>
+
+        <rect x="600" y="145" width="100" height="36" rx="8" fill="rgba(16,185,129,0.15)" stroke="#10b981" stroke-width="1.5"/>
+        <text x="650" y="167" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600" font-family="sans-serif">Post DB</text>
+
+        <line x1="650" y1="181" x2="650" y2="200" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="650" y="197" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">async fan-out</text>
+
+        <rect x="480" y="200" width="340" height="46" rx="6" fill="rgba(16,185,129,0.1)" stroke="#10b981" stroke-width="1"/>
+        <text x="650" y="218" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600" font-family="sans-serif">Timeline assembled at read time or via async queue</text>
+        <text x="650" y="234" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="sans-serif">Write amplification controlled · Latency absorbed in background</text>
+
+        <!-- Label below -->
+        <text x="430" y="268" text-anchor="middle" fill="#f59e0b" font-size="10" font-family="sans-serif">The arithmetic (1M writes per post) forces the design change — not intuition.</text>
+      </svg>
+    </div>
+
+    <div class="card-grid" style="margin-top:1rem;">
+      <div class="card">
+        <h3 style="color:var(--cyan)">📊 Latency Budgets</h3>
+        <p>If you need 100ms p99 and one cross-region call is 150ms, that call <strong>cannot be on the critical path</strong>. Forces caching, regionalization, or async — revealed by estimation before any code is written.</p>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--yellow)">💾 Storage Growth</h3>
+        <p>Logging 5KB/event at 50k events/sec = ~20GB/hour = ~500GB/day = ~180TB/year before compression. Retention and sampling stop being abstract — they become <strong>cost controls</strong>.</p>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--red)">🔗 Connection Limits</h3>
+        <p>10k concurrent connections per machine is a common soft limit. If the estimate requires 100k connections, you need more machines or a different protocol — not discovered through intuition alone.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRAPS -->
+  <section id="traps">
+    <div class="section-title"><div class="num">07</div>Traps to Avoid</div>
+    <div class="card-grid">
+      <div class="warn">
+        <div class="warn-label">⚠ False Precision</div>
+        <p style="font-size:0.9rem;">"1,247 shards" derived from soft inputs is theater. Prefer "hundreds of shards" until the inputs are firmer. Precision implies confidence that doesn't exist.</p>
+      </div>
+      <div class="warn">
+        <div class="warn-label">⚠ Ignoring Peaks</div>
+        <p style="font-size:0.9rem;">Average QPS is <strong>NOT</strong> what breaks systems. Peak concurrent users, peak write bursts, thundering herds are. Always estimate peak, not just average.</p>
+      </div>
+      <div class="danger">
+        <div class="danger-label">💀 Forgetting Amplification</div>
+        <p style="font-size:0.9rem;">Replication (3x), indexes (2x), secondary storage, temporary objects, retries — all multiply the base number. 1TB becomes 6TB quickly. Always apply amplification factors.</p>
+      </div>
+      <div class="danger">
+        <div class="danger-label">💀 Not Writing Assumptions Down</div>
+        <p style="font-size:0.9rem;">If assumptions are invisible, nobody can challenge them and the estimate can't be updated with better data. Write every assumption explicitly before calculating.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <div class="section-title"><div class="num">08</div>Quick Reference</div>
+    <div class="cheatsheet">
+      <div class="cs-title">⚡ Day 22 Cheat Sheet — Back-of-the-Envelope Estimation</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>QPS formula</strong>
+          QPS ≈ (DAU × actions/user) / 10⁵ (seconds per day). Multiply by peak ratio.
+        </div>
+        <div class="cs-item">
+          <strong>Storage formula</strong>
+          events/day × event_size_bytes × retention_days × replication_factor
+        </div>
+        <div class="cs-item">
+          <strong>Latency anchors</strong>
+          Cache: 1ns · Memory: 100ns · SSD: 100μs · HDD: 10ms · Same-DC: 0.5ms · Cross-US: 100ms
+        </div>
+        <div class="cs-item">
+          <strong>Bandwidth anchor</strong>
+          1Gbps link ≈ 100 MB/s. 10Gbps ≈ 1 GB/s. Always check if the link is the bottleneck.
+        </div>
+        <div class="cs-item">
+          <strong>Amplification factors</strong>
+          Raw data × 3 (replication) × ~2 (indexes + overhead) = ~6x. 1TB raw = ~6TB real.
+        </div>
+        <div class="cs-item">
+          <strong>Time constants</strong>
+          Day ≈ 10⁵ sec. Year ≈ π×10⁷ sec. Month ≈ 2.6×10⁶ sec.
+        </div>
+        <div class="cs-item">
+          <strong>Fan-out math</strong>
+          posts/sec × avg_followers = timeline write QPS. At 1M followers this number is brutal.
+        </div>
+        <div class="cs-item">
+          <strong>Order of magnitude goal</strong>
+          Within 10x is good enough to rule out a design. Stop seeking false precision.
+        </div>
+        <div class="cs-item">
+          <strong>Always write assumptions</strong>
+          Every number rests on assumptions. Make them visible, dateable, challengeable.
+        </div>
+      </div>
+    </div>
+
+    <div class="danger" style="margin-top:2rem;">
+      <div class="danger-label">💡 The Takeaway</div>
+      <p style="font-size:1rem;font-weight:600;">"Back-of-the-envelope estimation is how experienced engineers avoid building the wrong system. Learn a few constants. Practice multiplying them under time pressure. Force every non-trivial design through a quick capacity and latency check before committing to it."</p>
+    </div>
+  </section>
+</div>
+
+<script>
+function toggleTheme() {
+  const html = document.documentElement;
+  const btn = document.querySelector('.theme-btn');
+  if (html.dataset.theme === 'dark') {
+    html.dataset.theme = 'light';
+    btn.textContent = '🌙 Dark';
+  } else {
+    html.dataset.theme = 'dark';
+    btn.textContent = '☀️ Light';
+  }
+}
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.08 });
+document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

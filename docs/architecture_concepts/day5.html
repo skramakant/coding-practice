@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 5 — Rate Limiting | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --bg2: #f8fafc; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #0f172a; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(255,255,255,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 600px; }
+  .hero-meta { margin-top: 1rem; font-size: 0.8rem; color: var(--text2); }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .danger-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  .anecdote { background: var(--bg2); border-left: 4px solid var(--red); border-radius: 0 12px 12px 0; padding: 1.25rem 1.5rem; margin: 0 0 1.5rem; }
+  .layer-pyramid { display: flex; flex-direction: column; gap: 0.5rem; margin: 1.5rem 0; }
+  .pyramid-row { border-radius: 10px; padding: 0.9rem 1.25rem; display: flex; align-items: center; gap: 0.75rem; transition: transform 0.2s; }
+  .pyramid-row:hover { transform: translateX(4px); }
+  .pyramid-icon { font-size: 1.2rem; flex-shrink: 0; }
+  .pyramid-label { font-weight: 700; font-size: 0.9rem; }
+  .pyramid-desc { font-size: 0.82rem; color: var(--text2); }
+  code { background: var(--bg3); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: var(--green); }
+  @media (max-width: 640px) { nav { padding: 0 1rem; gap: 1rem; } .page { padding: 72px 1rem 3rem; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">Day 5 · Rate Limiting</span>
+  <div class="nav-links">
+    <a href="#why">Why It Matters</a>
+    <a href="#algorithms">3 Algorithms</a>
+    <a href="#diagrams">Diagrams</a>
+    <a href="#layers">4 Layers</a>
+    <a href="#response">Response Headers</a>
+    <a href="#retry">Retry Storm</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀ Light</button>
+</nav>
+
+<div class="page">
+
+  <header class="hero">
+    <div class="hero-tag">25-Day Scaling & Architecture · Day 5 of 25</div>
+    <h1>Rate <span>Limiting</span></h1>
+    <p class="hero-sub">Enforcing capacity limits before your system fails. Not a security tool — a reliability tool that buys you time.</p>
+    <p class="hero-meta">Source: 25-Day Scaling & Architecture Series</p>
+  </header>
+
+  <!-- WHY IT MATTERS -->
+  <section id="why">
+    <h2 class="section-title"><span class="num">1</span> Why Rate Limiting Exists</h2>
+
+    <div class="anecdote">
+      <p style="font-size:0.82rem; color:var(--red); font-weight:700; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.5rem;">🔥 Real Incident</p>
+      <p style="font-size:0.95rem; color:var(--text);">An <strong>internal batch job</strong> hit their own API: <strong>400,000 requests in 90 seconds</strong>. No rate limiting was in place. Result: 10-minute outage. The attacker was themselves.</p>
+    </div>
+
+    <div class="card">
+      <p style="font-size:1rem; margin-bottom:1rem;"><strong>Rate limiting = enforcing a capacity limit BEFORE the system fails.</strong></p>
+      <p style="font-size:0.9rem; color:var(--text2);">Without it, any client — external attacker, buggy internal service, or a well-intentioned batch job — can accidentally overwhelm your infrastructure. Rate limiting says "slow down" before you say "I'm down."</p>
+    </div>
+
+    <div class="takeaway">
+      <div class="takeaway-label">⚠️ Critical Clarification</div>
+      <p>Rate limiting is <strong>NOT a security solution</strong>. It does not prevent attacks. It <strong>buys time</strong> — it slows attackers down and prevents accidental self-inflicted overload. You still need proper security controls separately.</p>
+    </div>
+  </section>
+
+  <!-- 3 ALGORITHMS -->
+  <section id="algorithms">
+    <h2 class="section-title"><span class="num">2</span> Three Rate Limiting Algorithms</h2>
+
+    <div class="card" style="margin-bottom:1.25rem; border-left:4px solid var(--accent);">
+      <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
+        <span style="font-size:1.5rem;">🪣</span>
+        <h3 style="font-size:1.05rem; font-weight:700; color:var(--accent2);">Token Bucket</h3>
+        <span style="font-size:0.75rem; background:var(--accent-bg); color:var(--accent); padding:0.2rem 0.6rem; border-radius:100px;">AWS, Stripe</span>
+      </div>
+      <p style="font-size:0.9rem; color:var(--text2); margin-bottom:0.75rem;">A bucket holds N tokens. Each request consumes a token. The bucket refills at a constant rate (e.g., 10 tokens/second). If the bucket is full, new tokens are discarded. If empty, requests are rejected.</p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:0.75rem;">
+        <div style="background:var(--bg3); border-radius:8px; padding:0.85rem;">
+          <div style="font-size:0.8rem; font-weight:700; color:var(--accent2); margin-bottom:0.3rem;">Key property</div>
+          <div style="font-size:0.83rem; color:var(--text2);">Allows <strong>burst traffic</strong> up to bucket size. If you have 100 tokens saved, a burst of 100 requests gets through instantly.</div>
+        </div>
+        <div style="background:var(--bg3); border-radius:8px; padding:0.85rem;">
+          <div style="font-size:0.8rem; font-weight:700; color:var(--accent2); margin-bottom:0.3rem;">Best for</div>
+          <div style="font-size:0.83rem; color:var(--text2);">APIs with natural traffic bursts. Public APIs, search endpoints, most general use cases.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:1.25rem; border-left:4px solid var(--green);">
+      <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
+        <span style="font-size:1.5rem;">🪟</span>
+        <h3 style="font-size:1.05rem; font-weight:700; color:var(--green);">Sliding Window</h3>
+        <span style="font-size:0.75rem; background:var(--green-bg); color:var(--green); padding:0.2rem 0.6rem; border-radius:100px;">Strict</span>
+      </div>
+      <p style="font-size:0.9rem; color:var(--text2); margin-bottom:0.75rem;">Counts requests in a rolling time window (e.g., last 60 seconds). Each new request checks if the count in the past N seconds exceeds the limit. No burst allowance — just a strict per-window count.</p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:0.75rem;">
+        <div style="background:var(--bg3); border-radius:8px; padding:0.85rem;">
+          <div style="font-size:0.8rem; font-weight:700; color:var(--green); margin-bottom:0.3rem;">Key property</div>
+          <div style="font-size:0.83rem; color:var(--text2);">Strict, no burst. Every window is identical. Prevents gaming fixed-window resets.</div>
+        </div>
+        <div style="background:var(--bg3); border-radius:8px; padding:0.85rem;">
+          <div style="font-size:0.8rem; font-weight:700; color:var(--green); margin-bottom:0.3rem;">Best for</div>
+          <div style="font-size:0.83rem; color:var(--text2);">Auth endpoints (login), payment APIs, anything where burst exploitation is a risk.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="border-left:4px solid var(--yellow);">
+      <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
+        <span style="font-size:1.5rem;">🚰</span>
+        <h3 style="font-size:1.05rem; font-weight:700; color:var(--yellow);">Leaky Bucket</h3>
+        <span style="font-size:0.75rem; background:var(--yellow-bg); color:var(--yellow); padding:0.2rem 0.6rem; border-radius:100px;">Smooth output</span>
+      </div>
+      <p style="font-size:0.9rem; color:var(--text2); margin-bottom:0.75rem;">Requests enter a queue (the "bucket"). The queue drains at a constant rate — like water dripping from a leaky bucket. Extra requests beyond queue capacity are dropped.</p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:0.75rem;">
+        <div style="background:var(--bg3); border-radius:8px; padding:0.85rem;">
+          <div style="font-size:0.8rem; font-weight:700; color:var(--yellow); margin-bottom:0.3rem;">Key property</div>
+          <div style="font-size:0.83rem; color:var(--text2);">Perfectly smooth output regardless of input burst. Downstream always sees constant rate.</div>
+        </div>
+        <div style="background:var(--bg3); border-radius:8px; padding:0.85rem;">
+          <div style="font-size:0.8rem; font-weight:700; color:var(--yellow); margin-bottom:0.3rem;">Best for</div>
+          <div style="font-size:0.83rem; color:var(--text2);">Rate-sensitive downstream services (third-party APIs, video encoding, heavy export jobs).</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ALGORITHM DIAGRAMS -->
+  <section id="diagrams">
+    <h2 class="section-title"><span class="num">3</span> Algorithm Visualizations</h2>
+    <div class="svg-wrap">
+      <svg width="720" height="340" viewBox="0 0 720 340" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="a1" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto">
+            <polygon points="0 0, 7 3, 0 6" fill="#6366f1"/>
+          </marker>
+          <marker id="a2" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto">
+            <polygon points="0 0, 7 3, 0 6" fill="#10b981"/>
+          </marker>
+          <marker id="a3" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto">
+            <polygon points="0 0, 7 3, 0 6" fill="#f59e0b"/>
+          </marker>
+        </defs>
+
+        <!-- ====== TOKEN BUCKET ====== -->
+        <text x="100" y="18" text-anchor="middle" font-size="12" font-weight="700" fill="#818cf8">Token Bucket</text>
+
+        <!-- Bucket shape -->
+        <path d="M60 40 L140 40 L130 130 L70 130 Z" fill="#6366f1" opacity="0.12" stroke="#6366f1" stroke-width="1.5"/>
+        <!-- Tokens inside -->
+        <circle cx="80" cy="60" r="7" fill="#6366f1" opacity="0.7"/>
+        <circle cx="100" cy="60" r="7" fill="#6366f1" opacity="0.7"/>
+        <circle cx="120" cy="60" r="7" fill="#6366f1" opacity="0.7"/>
+        <circle cx="80" cy="80" r="7" fill="#6366f1" opacity="0.7"/>
+        <circle cx="100" cy="80" r="7" fill="#6366f1" opacity="0.7"/>
+        <circle cx="120" cy="80" r="7" fill="#6366f1" opacity="0.5"/>
+        <text x="100" y="120" text-anchor="middle" font-size="9" fill="#818cf8">5 tokens left</text>
+
+        <!-- Refill arrow -->
+        <text x="22" y="62" text-anchor="middle" font-size="9" fill="#10b981">+1/sec</text>
+        <path d="M38 62 L60 62" stroke="#10b981" stroke-width="1.5" marker-end="url(#a2)"/>
+
+        <!-- Consume arrow -->
+        <path d="M140 80 L165 80" stroke="#6366f1" stroke-width="1.5" marker-end="url(#a1)"/>
+        <text x="155" y="73" font-size="8" fill="#818cf8">request</text>
+        <text x="155" y="95" font-size="8" fill="#818cf8">consumes</text>
+        <text x="155" y="107" font-size="8" fill="#818cf8">1 token</text>
+
+        <!-- Burst indicator -->
+        <rect x="52" y="148" width="96" height="24" rx="5" fill="#6366f1" opacity="0.15"/>
+        <text x="100" y="164" text-anchor="middle" font-size="10" fill="#818cf8">Allows bursts ✓</text>
+
+        <!-- Separator -->
+        <line x1="240" y1="10" x2="240" y2="200" stroke="#2d3448" stroke-width="1"/>
+
+        <!-- ====== SLIDING WINDOW ====== -->
+        <text x="360" y="18" text-anchor="middle" font-size="12" font-weight="700" fill="#10b981">Sliding Window</text>
+
+        <!-- Window bar -->
+        <rect x="260" y="38" width="200" height="26" rx="5" fill="#2d3448"/>
+        <!-- Filled portion -->
+        <rect x="260" y="38" width="160" height="26" rx="5" fill="#10b981" opacity="0.3"/>
+        <!-- Limit line -->
+        <line x1="434" y1="30" x2="434" y2="72" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4,2"/>
+        <text x="448" y="42" font-size="9" fill="#ef4444">limit</text>
+
+        <!-- Ticks -->
+        <line x1="260" y1="68" x2="460" y2="68" stroke="#2d3448" stroke-width="1"/>
+        <text x="260" y="80" font-size="8" fill="#64748b">-60s</text>
+        <text x="350" y="80" text-anchor="middle" font-size="8" fill="#64748b">-30s</text>
+        <text x="452" y="80" font-size="8" fill="#64748b">now</text>
+
+        <!-- Requests in window -->
+        <text x="360" y="57" text-anchor="middle" font-size="10" fill="#10b981">8 requests in window</text>
+
+        <!-- New request check -->
+        <path d="M470 52 L500 52" stroke="#10b981" stroke-width="1.5" marker-end="url(#a2)"/>
+        <rect x="500" y="38" width="60" height="26" rx="5" fill="#10b981" opacity="0.15" stroke="#10b981" stroke-width="1"/>
+        <text x="530" y="55" text-anchor="middle" font-size="9" fill="#10b981">count &lt; 10?</text>
+        <text x="530" y="68" text-anchor="middle" font-size="8" fill="#10b981">✓ Allow</text>
+
+        <rect x="272" y="148" width="176" height="24" rx="5" fill="#10b981" opacity="0.12"/>
+        <text x="360" y="164" text-anchor="middle" font-size="10" fill="#10b981">Strict, no burst gaming ✓</text>
+
+        <!-- Separator -->
+        <line x1="580" y1="10" x2="580" y2="200" stroke="#2d3448" stroke-width="1"/>
+
+        <!-- ====== LEAKY BUCKET ====== -->
+        <text x="648" y="18" text-anchor="middle" font-size="12" font-weight="700" fill="#f59e0b">Leaky Bucket</text>
+
+        <!-- Bucket -->
+        <path d="M610 38 L690 38 L685 130 L615 130 Z" fill="#f59e0b" opacity="0.12" stroke="#f59e0b" stroke-width="1.5"/>
+        <!-- Requests queued -->
+        <rect x="620" y="48" width="52" height="14" rx="3" fill="#f59e0b" opacity="0.5"/>
+        <rect x="620" y="66" width="52" height="14" rx="3" fill="#f59e0b" opacity="0.5"/>
+        <rect x="620" y="84" width="52" height="14" rx="3" fill="#f59e0b" opacity="0.3"/>
+
+        <!-- Drip arrow at bottom -->
+        <path d="M648 130 L648 155" stroke="#f59e0b" stroke-width="2" marker-end="url(#a3)"/>
+        <text x="648" y="168" text-anchor="middle" font-size="9" fill="#f59e0b">constant rate</text>
+
+        <rect x="600" y="178" width="96" height="24" rx="5" fill="#f59e0b" opacity="0.12"/>
+        <text x="648" y="194" text-anchor="middle" font-size="10" fill="#f59e0b">Smooth output ✓</text>
+
+        <!-- ===== COMPARISON BOTTOM ===== -->
+        <line x1="20" y1="216" x2="700" y2="216" stroke="#2d3448" stroke-width="1"/>
+        <text x="360" y="238" text-anchor="middle" font-size="12" font-weight="700" fill="#e2e8f0">Use Case Guide</text>
+
+        <!-- Token Bucket use cases -->
+        <text x="100" y="262" text-anchor="middle" font-size="10" font-weight="700" fill="#818cf8">Token Bucket</text>
+        <text x="100" y="278" text-anchor="middle" font-size="9" fill="#94a3b8">Public APIs</text>
+        <text x="100" y="292" text-anchor="middle" font-size="9" fill="#94a3b8">Search endpoints</text>
+        <text x="100" y="306" text-anchor="middle" font-size="9" fill="#94a3b8">Bursty traffic patterns</text>
+
+        <!-- Sliding Window use cases -->
+        <text x="360" y="262" text-anchor="middle" font-size="10" font-weight="700" fill="#10b981">Sliding Window</text>
+        <text x="360" y="278" text-anchor="middle" font-size="9" fill="#94a3b8">Auth / login endpoints</text>
+        <text x="360" y="292" text-anchor="middle" font-size="9" fill="#94a3b8">Payment APIs</text>
+        <text x="360" y="306" text-anchor="middle" font-size="9" fill="#94a3b8">Abuse prevention</text>
+
+        <!-- Leaky Bucket use cases -->
+        <text x="620" y="262" text-anchor="middle" font-size="10" font-weight="700" fill="#f59e0b">Leaky Bucket</text>
+        <text x="620" y="278" text-anchor="middle" font-size="9" fill="#94a3b8">3rd-party API calls</text>
+        <text x="620" y="292" text-anchor="middle" font-size="9" fill="#94a3b8">Video/media processing</text>
+        <text x="620" y="306" text-anchor="middle" font-size="9" fill="#94a3b8">Heavy export jobs</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- 4 LAYERS -->
+  <section id="layers">
+    <h2 class="section-title"><span class="num">4</span> 4 Layers of Rate Limiting</h2>
+    <p style="color:var(--text2); font-size:0.9rem; margin-bottom:1.25rem;">Rate limiting is applied at multiple levels — each layer has a different scope and granularity. Apply all four for complete protection.</p>
+
+    <!-- Layer pyramid -->
+    <div class="layer-pyramid">
+      <div class="pyramid-row" style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3);">
+        <div class="pyramid-icon">🌐</div>
+        <div>
+          <div class="pyramid-label" style="color:#f87171;">Layer 1 — API Gateway (Global)</div>
+          <div class="pyramid-desc">Widest net. Limits total RPS across all users. Protects infrastructure from global floods. Managed at the gateway (Kong, AWS API Gateway, Nginx).</div>
+        </div>
+      </div>
+      <div class="pyramid-row" style="background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3);">
+        <div class="pyramid-icon">⚙️</div>
+        <div>
+          <div class="pyramid-label" style="color:#fbbf24;">Layer 2 — Per-Service Limits</div>
+          <div class="pyramid-desc">Each microservice enforces its own limits independently. Prevents one slow service from consuming all capacity via a single entry point.</div>
+        </div>
+      </div>
+      <div class="pyramid-row" style="background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.3);">
+        <div class="pyramid-icon">👤</div>
+        <div>
+          <div class="pyramid-label" style="color:#818cf8;">Layer 3 — Per-User Limits</div>
+          <div class="pyramid-desc">Fair usage enforcement. Implements pricing tiers (free: 100 RPM, pro: 1,000 RPM, enterprise: unlimited). Prevents one user from starving others.</div>
+        </div>
+      </div>
+      <div class="pyramid-row" style="background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3);">
+        <div class="pyramid-icon">🔗</div>
+        <div>
+          <div class="pyramid-label" style="color:#34d399;">Layer 4 — Per-Endpoint Limits</div>
+          <div class="pyramid-desc">Different endpoints have different costs. Login endpoint: 5/min. Search: 30/sec. Heavy export: 2 concurrent. Matches rate to endpoint cost.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="warn">
+      <div class="warn-label">⚠️ Don't Rate Limit Health Checks!</div>
+      <p style="font-size:0.88rem; color:var(--text);">Your load balancer polls health check endpoints at high frequency. If you rate limit <code>/health</code> or <code>/ping</code>, the LB will mark your instance as unhealthy. Explicitly exclude health check paths from rate limiting rules.</p>
+    </div>
+  </section>
+
+  <!-- RESPONSE HEADERS -->
+  <section id="response">
+    <h2 class="section-title"><span class="num">5</span> Proper 429 Response Format</h2>
+    <div class="card">
+      <p style="font-size:0.9rem; color:var(--text2); margin-bottom:1.25rem;">When rate limiting, always return <strong>429 Too Many Requests</strong> with informative headers so clients can self-throttle intelligently.</p>
+      <div style="background:var(--bg3); border-radius:10px; padding:1.25rem; font-family:monospace; font-size:0.85rem; line-height:2;">
+        <span style="color:#ef4444;">HTTP/1.1 429 Too Many Requests</span><br>
+        <span style="color:#f59e0b;">X-RateLimit-Limit</span><span style="color:#94a3b8;">: 100</span>
+        <span style="color:#64748b; font-size:0.78rem;">  ← Your total allowed requests</span><br>
+        <span style="color:#f59e0b;">X-RateLimit-Remaining</span><span style="color:#94a3b8;">: 0</span>
+        <span style="color:#64748b; font-size:0.78rem;">  ← Requests left in window</span><br>
+        <span style="color:#f59e0b;">Retry-After</span><span style="color:#94a3b8;">: 45</span>
+        <span style="color:#64748b; font-size:0.78rem;">  ← Seconds until window resets</span><br>
+        <span style="color:#f59e0b;">X-RateLimit-Reset</span><span style="color:#94a3b8;">: 1735920000</span>
+        <span style="color:#64748b; font-size:0.78rem;"> ← Unix timestamp of reset</span>
+      </div>
+      <p style="font-size:0.83rem; color:var(--text2); margin-top:1rem;">A well-designed client reads <code>Retry-After</code> and waits exactly that long before retrying — preventing the retry storm described below.</p>
+    </div>
+  </section>
+
+  <!-- RETRY STORM -->
+  <section id="retry">
+    <h2 class="section-title"><span class="num">6</span> The Retry Storm Problem</h2>
+    <div class="danger">
+      <div class="danger-label">🚨 How Retry Storms Happen</div>
+      <p style="font-size:0.9rem; color:var(--text); margin-bottom:0.75rem;">System gets overloaded → returns 429s → ALL clients retry at the same time (same retry interval) → synchronized wave of retries → bigger surge → more 429s → loop. <strong>Rate limiting itself causes the overload.</strong></p>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:0.95rem; font-weight:700; color:var(--accent2); margin-bottom:1rem;">Fix: Exponential Backoff + Jitter</h3>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+        <div>
+          <p style="font-size:0.85rem; font-weight:600; color:var(--red); margin-bottom:0.5rem;">❌ Naive retry (causes storm)</p>
+          <div style="background:var(--bg3); border-radius:8px; padding:0.85rem; font-family:monospace; font-size:0.82rem; color:var(--text2); line-height:1.8;">
+            retry after: 1s<br>
+            retry after: 1s<br>
+            retry after: 1s<br>
+            <span style="color:#ef4444;">// All clients synchronized</span>
+          </div>
+        </div>
+        <div>
+          <p style="font-size:0.85rem; font-weight:600; color:var(--green); margin-bottom:0.5rem;">✅ Exponential backoff + jitter</p>
+          <div style="background:var(--bg3); border-radius:8px; padding:0.85rem; font-family:monospace; font-size:0.82rem; color:var(--text2); line-height:1.8;">
+            retry after: 1s + rand(0-0.5s)<br>
+            retry after: 2s + rand(0-1s)<br>
+            retry after: 4s + rand(0-2s)<br>
+            <span style="color:#10b981;">// Desynchronized clients</span>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:0.83rem; color:var(--text2); margin-top:0.75rem;">The jitter (random delay) ensures clients are desynchronized. Even if 1,000 clients all get 429 at the same time, they retry at different moments, spreading the load.</p>
+    </div>
+  </section>
+
+  <!-- IMPLEMENTATION -->
+  <section id="impl">
+    <h2 class="section-title"><span class="num">7</span> Implementation Notes</h2>
+    <div class="card-grid">
+      <div class="card">
+        <h3 style="font-size:0.95rem; font-weight:700; color:var(--accent2); margin-bottom:0.75rem;">💾 Where to Store Counters</h3>
+        <div style="margin-bottom:0.75rem;">
+          <span class="badge badge-green">Multi-instance</span>
+          <p style="font-size:0.85rem; color:var(--text2); margin-top:0.4rem;">Use <strong>Redis</strong>. Counters are shared across all instances. Atomic INCR + EXPIRE operations. Rate limit state is consistent regardless of which server handles the request.</p>
+        </div>
+        <div>
+          <span class="badge badge-yellow">Single instance</span>
+          <p style="font-size:0.85rem; color:var(--text2); margin-top:0.4rem;">In-memory is fine. Faster, simpler. Only valid if you truly have one server and no plans to scale horizontally.</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="font-size:0.95rem; font-weight:700; color:var(--accent2); margin-bottom:0.75rem;">📊 How to Set Limits</h3>
+        <div style="display:flex; flex-direction:column; gap:0.5rem;">
+          <div style="background:var(--bg3); border-radius:8px; padding:0.7rem; font-size:0.83rem;">
+            <strong style="color:var(--accent2);">1. Measure first</strong> — baseline normal traffic patterns
+          </div>
+          <div style="background:var(--bg3); border-radius:8px; padding:0.7rem; font-size:0.83rem;">
+            <strong style="color:var(--accent2);">2. Set above normal, below breaking</strong> — limits should not trigger during normal use
+          </div>
+          <div style="background:var(--bg3); border-radius:8px; padding:0.7rem; font-size:0.83rem;">
+            <strong style="color:var(--accent2);">3. Start lenient</strong> — tighten based on data, don't guess upfront
+          </div>
+          <div style="background:var(--bg3); border-radius:8px; padding:0.7rem; font-size:0.83rem;">
+            <strong style="color:var(--accent2);">4. Monitor 429 rate</strong> — above 1-2% = investigate, limits too tight or abuse occurring
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <h2 class="section-title"><span class="num">8</span> Quick Reference</h2>
+    <div class="cheatsheet">
+      <div class="cs-title">📋 Rate Limiting Decision Cheat Sheet</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>Public API (general)</strong>
+          Token bucket — 100 requests/min. Allows natural bursts.
+        </div>
+        <div class="cs-item">
+          <strong>Login / auth endpoint</strong>
+          Sliding window — 5 attempts/min. Strict, no burst gaming.
+        </div>
+        <div class="cs-item">
+          <strong>Search endpoint</strong>
+          Token bucket — 30 req/sec per user. Burst-friendly.
+        </div>
+        <div class="cs-item">
+          <strong>Heavy export / processing</strong>
+          Leaky bucket — 2 concurrent. Smooth downstream load.
+        </div>
+        <div class="cs-item">
+          <strong>Multi-instance deployment</strong>
+          Store counters in Redis. Atomic INCR operations.
+        </div>
+        <div class="cs-item">
+          <strong>Single server</strong>
+          In-memory counters fine. Simpler and faster.
+        </div>
+        <div class="cs-item">
+          <strong>429 response must include</strong>
+          X-RateLimit-Limit, X-RateLimit-Remaining, Retry-After
+        </div>
+        <div class="cs-item">
+          <strong>Prevent retry storms</strong>
+          Exponential backoff + random jitter on client retries.
+        </div>
+        <div class="cs-item">
+          <strong>NEVER rate limit</strong>
+          Health check endpoints (/health, /ping, /status)
+        </div>
+        <div class="cs-item">
+          <strong>Monitor threshold</strong>
+          429 rate above 1-2% → investigate root cause.
+        </div>
+        <div class="cs-item">
+          <strong>Rate limiting is NOT</strong>
+          A security solution. It buys time. Not a replacement for auth.
+        </div>
+        <div class="cs-item">
+          <strong>Real incident lesson</strong>
+          Internal services can hit limits too. Rate limit everything.
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  function toggleTheme() {
+    const root = document.documentElement;
+    const btn = document.querySelector('.theme-btn');
+    if (root.dataset.theme === 'dark') { root.dataset.theme = 'light'; btn.textContent = '🌙 Dark'; }
+    else { root.dataset.theme = 'dark'; btn.textContent = '☀ Light'; }
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

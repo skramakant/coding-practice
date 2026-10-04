@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 6 — API Gateway | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #1e293b; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(248,250,252,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 640px; }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; color: var(--accent2); }
+  .card p, .card ul { font-size: 0.9rem; color: var(--text2); }
+  .card ul { padding-left: 1.2rem; }
+  .card ul li { margin-bottom: 0.3rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .danger-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 0.4rem; }
+  .success { background: var(--green-bg); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .success-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-purple { background: var(--accent-bg); color: var(--accent2); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  .job-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+  .job-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; display: flex; gap: 1rem; align-items: flex-start; transition: border-color 0.2s; }
+  .job-card:hover { border-color: var(--accent); }
+  .job-icon { width: 40px; height: 40px; background: var(--accent-bg); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+  .job-info h4 { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.3rem; }
+  .job-info p { font-size: 0.82rem; color: var(--text2); }
+  .staircase { display: flex; flex-direction: column; gap: 0.5rem; margin: 1.5rem 0; }
+  .stair { border-radius: 10px; padding: 0.85rem 1.25rem; display: flex; align-items: center; gap: 1rem; font-size: 0.88rem; }
+  .stair-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; flex-shrink: 0; }
+  code { background: var(--bg3); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: var(--green); }
+  @media (max-width: 640px) { nav { padding: 0 1rem; gap: 1rem; } .page { padding: 72px 1rem 3rem; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">Day 6 · API Gateway</span>
+  <div class="nav-links">
+    <a href="#what">What Is It</a>
+    <a href="#jobs">6 Jobs</a>
+    <a href="#diagram">Diagram</a>
+    <a href="#routing">Routing Patterns</a>
+    <a href="#vs-mesh">vs Service Mesh</a>
+    <a href="#production">Production Tips</a>
+    <a href="#decision">Decision Framework</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀ Light</button>
+</nav>
+
+<div class="page">
+  <header class="hero">
+    <div class="hero-tag">Day 6 of 25 · Scaling & Architecture</div>
+    <h1>API <span>Gateway</span></h1>
+    <p class="hero-sub">The single entry point for all client traffic — your system's front door, bouncer, and translator rolled into one.</p>
+  </header>
+
+  <!-- WHAT IS IT -->
+  <section id="what">
+    <h2 class="section-title"><span class="num">1</span> What Is an API Gateway?</h2>
+    <div class="card">
+      <p style="font-size:1rem; margin-bottom:1rem;">An API Gateway is a <strong>single entry point for ALL client traffic</strong>. Without it, every microservice must independently implement auth, rate limiting, logging, CORS, input validation, and protocol translation — duplicating the same cross-cutting concerns across dozens of services.</p>
+      <div class="takeaway">
+        <div class="takeaway-label">💡 Core Idea</div>
+        <p>The gateway centralises all the <em>boring but critical</em> infrastructure concerns so your services can focus on business logic.</p>
+      </div>
+      <h3 style="margin-top:1rem; margin-bottom:0.5rem; color:var(--red);">Without a Gateway — The Chaos</h3>
+      <div class="card-grid" style="margin-top:0.5rem;">
+        <div class="card">
+          <h3>🔐 Auth duplicated</h3>
+          <p>Every service validates JWT / API keys. One wrong implementation = security hole.</p>
+        </div>
+        <div class="card">
+          <h3>🚦 Rate limiting duplicated</h3>
+          <p>Each service throttles independently. No aggregate view. Easy to bypass.</p>
+        </div>
+        <div class="card">
+          <h3>📋 Logging inconsistent</h3>
+          <p>Every team logs differently. Debugging a request across services is a nightmare.</p>
+        </div>
+        <div class="card">
+          <h3>🔄 Protocol mismatches</h3>
+          <p>External clients want REST. Internal services want gRPC. No place to translate.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 JOBS -->
+  <section id="jobs">
+    <h2 class="section-title"><span class="num">2</span> The 6 Jobs of an API Gateway</h2>
+    <div class="job-grid">
+      <div class="job-card">
+        <div class="job-icon">🔐</div>
+        <div class="job-info">
+          <h4>1. Authentication &amp; Authorization</h4>
+          <p>Validates JWT tokens or API keys <em>before</em> the request ever reaches a backend service. One centralised auth layer — no service needs its own.</p>
+        </div>
+      </div>
+      <div class="job-card">
+        <div class="job-icon">🚦</div>
+        <div class="job-info">
+          <h4>2. Rate Limiting</h4>
+          <p>Enforces request limits per client/IP/API key. Connected to Day 5 concepts — token bucket, sliding window, etc. Protects all downstream services.</p>
+        </div>
+      </div>
+      <div class="job-card">
+        <div class="job-icon">🗺️</div>
+        <div class="job-info">
+          <h4>3. Request Routing</h4>
+          <p>Routes <code>/api/users</code> to the User Service, <code>/api/orders</code> to the Order Service. Path-based, header-based, or weighted routing.</p>
+        </div>
+      </div>
+      <div class="job-card">
+        <div class="job-icon">🔄</div>
+        <div class="job-info">
+          <h4>4. Protocol Translation</h4>
+          <p>External clients speak REST/HTTP. Internal services speak gRPC for efficiency. The gateway translates between protocols transparently.</p>
+        </div>
+      </div>
+      <div class="job-card">
+        <div class="job-icon">⚡</div>
+        <div class="job-info">
+          <h4>5. Response Caching</h4>
+          <p>Caches GET responses at the gateway edge. Repeated identical requests never hit the backend. Massive reduction in load for read-heavy endpoints.</p>
+        </div>
+      </div>
+      <div class="job-card">
+        <div class="job-icon">📊</div>
+        <div class="job-info">
+          <h4>6. Logging &amp; Observability</h4>
+          <p>Every request logged in one place: latency, status codes, upstream service, user identity. Centralised traces without instrumenting every service.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SVG DIAGRAM -->
+  <section id="diagram">
+    <h2 class="section-title"><span class="num">3</span> Architecture Diagram</h2>
+    <p style="color:var(--text2); margin-bottom:1rem;">North-south traffic (external → system via Gateway) vs east-west traffic (service-to-service via Service Mesh).</p>
+    <div class="svg-wrap">
+      <svg width="960" height="560" viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#6366f1"/>
+          </marker>
+          <marker id="arr-g" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#10b981"/>
+          </marker>
+          <marker id="arr-o" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#f59e0b"/>
+          </marker>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+          </filter>
+        </defs>
+
+        <!-- Background zones -->
+        <rect x="10" y="10" width="940" height="540" rx="16" fill="#1a1f2e" stroke="#2d3448" stroke-width="1.5"/>
+
+        <!-- Internet Zone -->
+        <rect x="30" y="30" width="160" height="200" rx="12" fill="rgba(99,102,241,0.06)" stroke="#6366f1" stroke-width="1" stroke-dasharray="6,4"/>
+        <text x="110" y="56" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700" letter-spacing="1">INTERNET</text>
+
+        <!-- Client icons -->
+        <rect x="55" y="70" width="65" height="50" rx="8" fill="#242938" stroke="#2d3448"/>
+        <text x="87" y="92" text-anchor="middle" font-size="18">📱</text>
+        <text x="87" y="110" text-anchor="middle" fill="#94a3b8" font-size="10">Mobile</text>
+
+        <rect x="135" y="70" width="40" height="50" rx="8" fill="#242938" stroke="#2d3448"/>
+        <text x="155" y="92" text-anchor="middle" font-size="18">🌐</text>
+        <text x="155" y="110" text-anchor="middle" fill="#94a3b8" font-size="10">Web</text>
+
+        <rect x="55" y="145" width="120" height="50" rx="8" fill="#242938" stroke="#2d3448"/>
+        <text x="115" y="167" text-anchor="middle" font-size="18">🤖</text>
+        <text x="115" y="185" text-anchor="middle" fill="#94a3b8" font-size="10">3rd Party API</text>
+
+        <!-- North-South arrow label -->
+        <text x="220" y="105" fill="#6366f1" font-size="11" font-weight="700">NORTH-SOUTH</text>
+        <text x="220" y="120" fill="#94a3b8" font-size="10">External traffic</text>
+        <text x="220" y="134" fill="#94a3b8" font-size="10">into the system</text>
+
+        <!-- Arrow from clients to gateway -->
+        <line x1="200" y1="135" x2="290" y2="200" stroke="#6366f1" stroke-width="2" marker-end="url(#arr)" stroke-dasharray="6,3"/>
+        <line x1="200" y1="95" x2="290" y2="185" stroke="#6366f1" stroke-width="2" marker-end="url(#arr)"/>
+
+        <!-- API GATEWAY BOX -->
+        <rect x="290" y="140" width="160" height="240" rx="14" fill="rgba(99,102,241,0.15)" stroke="#6366f1" stroke-width="2"/>
+        <text x="370" y="168" text-anchor="middle" fill="#818cf8" font-size="12" font-weight="800" letter-spacing="1">API GATEWAY</text>
+        <!-- gateway functions -->
+        <rect x="304" y="178" width="132" height="22" rx="5" fill="#242938"/>
+        <text x="316" y="193" fill="#10b981" font-size="10">🔐 Auth &amp; AuthZ</text>
+        <rect x="304" y="204" width="132" height="22" rx="5" fill="#242938"/>
+        <text x="316" y="219" fill="#f59e0b" font-size="10">🚦 Rate Limiting</text>
+        <rect x="304" y="230" width="132" height="22" rx="5" fill="#242938"/>
+        <text x="316" y="245" fill="#6366f1" font-size="10">🗺️ Request Routing</text>
+        <rect x="304" y="256" width="132" height="22" rx="5" fill="#242938"/>
+        <text x="316" y="271" fill="#06b6d4" font-size="10">🔄 Protocol Trans.</text>
+        <rect x="304" y="282" width="132" height="22" rx="5" fill="#242938"/>
+        <text x="316" y="297" fill="#818cf8" font-size="10">⚡ Response Cache</text>
+        <rect x="304" y="308" width="132" height="22" rx="5" fill="#242938"/>
+        <text x="316" y="323" fill="#94a3b8" font-size="10">📊 Logging / Obs.</text>
+        <text x="370" y="355" text-anchor="middle" fill="#94a3b8" font-size="9">Runs in CLUSTER</text>
+        <text x="370" y="367" text-anchor="middle" fill="#94a3b8" font-size="9">(not a single point!)</text>
+
+        <!-- Microservices zone -->
+        <rect x="500" y="60" width="420" height="420" rx="12" fill="rgba(16,185,129,0.04)" stroke="#10b981" stroke-width="1" stroke-dasharray="6,4"/>
+        <text x="710" y="86" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700" letter-spacing="1">INTERNAL SERVICES</text>
+
+        <!-- Service boxes -->
+        <rect x="530" y="110" width="120" height="70" rx="10" fill="#242938" stroke="#2d3448"/>
+        <text x="590" y="141" text-anchor="middle" font-size="18">👤</text>
+        <text x="590" y="163" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">User Service</text>
+        <text x="590" y="176" text-anchor="middle" fill="#94a3b8" font-size="9">/api/users</text>
+
+        <rect x="700" y="110" width="120" height="70" rx="10" fill="#242938" stroke="#2d3448"/>
+        <text x="760" y="141" text-anchor="middle" font-size="18">📦</text>
+        <text x="760" y="163" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">Order Service</text>
+        <text x="760" y="176" text-anchor="middle" fill="#94a3b8" font-size="9">/api/orders</text>
+
+        <rect x="530" y="240" width="120" height="70" rx="10" fill="#242938" stroke="#2d3448"/>
+        <text x="590" y="271" text-anchor="middle" font-size="18">💳</text>
+        <text x="590" y="293" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">Payment Service</text>
+        <text x="590" y="306" text-anchor="middle" fill="#94a3b8" font-size="9">/api/payments</text>
+
+        <rect x="700" y="240" width="120" height="70" rx="10" fill="#242938" stroke="#2d3448"/>
+        <text x="760" y="271" text-anchor="middle" font-size="18">📧</text>
+        <text x="760" y="293" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">Notif. Service</text>
+        <text x="760" y="306" text-anchor="middle" fill="#94a3b8" font-size="9">internal only</text>
+
+        <rect x="615" y="375" width="130" height="70" rx="10" fill="#242938" stroke="#2d3448"/>
+        <text x="680" y="406" text-anchor="middle" font-size="18">📊</text>
+        <text x="680" y="428" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">Analytics Service</text>
+        <text x="680" y="441" text-anchor="middle" fill="#94a3b8" font-size="9">/api/analytics</text>
+
+        <!-- Gateway to services (routing arrows) -->
+        <line x1="450" y1="195" x2="524" y2="155" stroke="#6366f1" stroke-width="2" marker-end="url(#arr)"/>
+        <line x1="450" y1="215" x2="524" y2="280" stroke="#6366f1" stroke-width="2" marker-end="url(#arr)"/>
+        <line x1="450" y1="230" x2="694" y2="145" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="450" y1="245" x2="694" y2="275" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="450" y1="260" x2="614" y2="405" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- East-West service mesh arrows -->
+        <line x1="650" y1="148" x2="700" y2="148" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)" stroke-dasharray="4,3"/>
+        <line x1="650" y1="278" x2="700" y2="278" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)" stroke-dasharray="4,3"/>
+        <line x1="590" y1="180" x2="590" y2="240" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)" stroke-dasharray="4,3"/>
+        <line x1="760" y1="180" x2="760" y2="240" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-g)" stroke-dasharray="4,3"/>
+
+        <!-- Service Mesh label -->
+        <rect x="820" y="190" width="80" height="80" rx="10" fill="rgba(16,185,129,0.1)" stroke="#10b981" stroke-width="1"/>
+        <text x="860" y="214" text-anchor="middle" fill="#10b981" font-size="10" font-weight="700">SERVICE</text>
+        <text x="860" y="228" text-anchor="middle" fill="#10b981" font-size="10" font-weight="700">MESH</text>
+        <text x="860" y="246" text-anchor="middle" fill="#94a3b8" font-size="9">East-West</text>
+        <text x="860" y="259" text-anchor="middle" fill="#94a3b8" font-size="9">Istio/Linkerd</text>
+
+        <!-- East-West label connector -->
+        <line x1="820" y1="230" x2="775" y2="230" stroke="#10b981" stroke-width="1" stroke-dasharray="3,2"/>
+
+        <!-- Legend -->
+        <rect x="30" y="460" width="230" height="70" rx="8" fill="rgba(0,0,0,0.2)"/>
+        <text x="45" y="478" fill="#e2e8f0" font-size="10" font-weight="700">LEGEND</text>
+        <line x1="45" y1="492" x2="80" y2="492" stroke="#6366f1" stroke-width="2" marker-end="url(#arr)"/>
+        <text x="88" y="496" fill="#6366f1" font-size="10">North-South (Gateway)</text>
+        <line x1="45" y1="512" x2="80" y2="512" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr-g)"/>
+        <text x="88" y="516" fill="#10b981" font-size="10">East-West (Service Mesh)</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ROUTING PATTERNS -->
+  <section id="routing">
+    <h2 class="section-title"><span class="num">4</span> Routing Patterns</h2>
+    <div class="card-grid">
+      <div class="card">
+        <h3>📋 Header-Based Routing</h3>
+        <p style="margin-bottom:0.75rem;">API version in the request header routes to the correct service version:</p>
+        <p style="font-family:monospace; font-size:0.82rem; background:var(--bg3); padding:0.75rem; border-radius:8px; color:var(--green);">
+          X-API-Version: v1 → User Service v1<br>
+          X-API-Version: v2 → User Service v2
+        </p>
+        <p style="margin-top:0.75rem; font-size:0.85rem; color:var(--text2);">Enables parallel running of multiple API versions with zero client disruption.</p>
+      </div>
+      <div class="card">
+        <h3>⚖️ Weighted Routing / Canary Deployments</h3>
+        <p style="margin-bottom:0.75rem;">Gradually shift traffic to a new version:</p>
+        <div style="display:flex; flex-direction:column; gap:0.4rem; font-size:0.85rem;">
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <div style="width:5%; height:12px; background:#6366f1; border-radius:3px;"></div>
+            <span style="color:var(--text2);">5% → new version (monitor)</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <div style="width:25%; height:12px; background:#6366f1; border-radius:3px;"></div>
+            <span style="color:var(--text2);">25% → looks good, ramp up</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <div style="width:100%; height:12px; background:#6366f1; border-radius:3px;"></div>
+            <span style="color:var(--text2);">100% → fully migrated</span>
+          </div>
+        </div>
+        <p style="margin-top:0.75rem; font-size:0.85rem; color:var(--text2);">Rollback instantly if error rates spike.</p>
+      </div>
+      <div class="card">
+        <h3>🔀 Request Aggregation — BFF Pattern</h3>
+        <p style="font-size:0.85rem; color:var(--text2); margin-bottom:0.75rem;">Backend For Frontend (BFF): one call from mobile, gateway fans out to 3 services and returns one merged response.</p>
+        <div style="font-family:monospace; font-size:0.8rem; background:var(--bg3); padding:0.75rem; border-radius:8px; line-height:1.8; color:var(--cyan);">
+          Mobile → /api/dashboard<br>
+          &nbsp;&nbsp;↳ GET /users/123<br>
+          &nbsp;&nbsp;↳ GET /orders?user=123<br>
+          &nbsp;&nbsp;↳ GET /notifications/123<br>
+          &nbsp;&nbsp;← Merged JSON response
+        </div>
+        <p style="margin-top:0.75rem; font-size:0.85rem; color:var(--text2);">3 network calls → 1. Mobile clients love it.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- VS SERVICE MESH -->
+  <section id="vs-mesh">
+    <h2 class="section-title"><span class="num">5</span> API Gateway vs Service Mesh</h2>
+    <div class="takeaway">
+      <div class="takeaway-label">💡 The One-Line Distinction</div>
+      <p><strong>Gateway = north-south traffic</strong> (external clients INTO your system). <strong>Service mesh = east-west traffic</strong> (BETWEEN internal services).</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Dimension</th>
+            <th>API Gateway</th>
+            <th>Service Mesh (Istio/Linkerd)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Traffic direction</td>
+            <td><span class="badge badge-purple">North-South</span></td>
+            <td><span class="badge badge-green">East-West</span></td>
+          </tr>
+          <tr>
+            <td>Who talks to it</td>
+            <td>External clients (browsers, apps, partners)</td>
+            <td>Internal services talking to each other</td>
+          </tr>
+          <tr>
+            <td>Security</td>
+            <td>Auth / rate limiting / API key validation</td>
+            <td>mTLS between every service pair automatically</td>
+          </tr>
+          <tr>
+            <td>Reliability</td>
+            <td>Basic retries, circuit breaking</td>
+            <td>Advanced retries, circuit breaking, timeouts everywhere</td>
+          </tr>
+          <tr>
+            <td>Observability</td>
+            <td>Access logs, latency per route</td>
+            <td>Service-to-service tracing, per-call metrics</td>
+          </tr>
+          <tr>
+            <td>When to use</td>
+            <td>Always — from day one</td>
+            <td>At 20+ services for consistent security/observability</td>
+          </tr>
+          <tr>
+            <td>Common tools</td>
+            <td>Kong, AWS API GW, NGINX, Traefik, Envoy</td>
+            <td>Istio, Linkerd, Consul Connect</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-grid" style="margin-top:1rem;">
+      <div class="warn">
+        <div class="warn-label">⚠️ At 5 Services</div>
+        <p>Handle retries and circuit breaking in application code. Service mesh overhead isn't worth it yet.</p>
+      </div>
+      <div class="success">
+        <div class="success-label">✅ Common Pattern at Scale</div>
+        <p>Use <strong>both layers</strong>: API Gateway for external traffic + Service Mesh for internal. They solve different problems.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRODUCTION TIPS -->
+  <section id="production">
+    <h2 class="section-title"><span class="num">6</span> Production Tips</h2>
+    <div class="danger">
+      <div class="danger-label">🚫 Don't Build Your Own</div>
+      <p>Use battle-tested solutions: <strong>Kong</strong>, <strong>AWS API Gateway</strong>, <strong>NGINX</strong>, <strong>Envoy</strong>, <strong>Traefik</strong>. Building a gateway from scratch means you'll rediscover every edge case the hard way.</p>
+    </div>
+    <div class="card-grid">
+      <div class="card">
+        <h3>🚫 No Business Logic in Gateway</h3>
+        <p>The gateway is infrastructure. Putting business logic there couples unrelated concerns and makes the gateway a deployment bottleneck. Services own their logic.</p>
+      </div>
+      <div class="card">
+        <h3>📌 Version APIs from Day One</h3>
+        <p>Use <code>/v1/users</code> from the very first endpoint. Retrofitting versioning later is painful. You <em>will</em> need to break the API eventually.</p>
+      </div>
+      <div class="card">
+        <h3>❤️ Set Up Health Checks</h3>
+        <p>Configure health checks through the gateway. It should actively probe services and stop routing to unhealthy instances automatically.</p>
+      </div>
+      <div class="card">
+        <h3>📈 Monitor the Gateway Itself</h3>
+        <p>The gateway is your single point of entry. Track: p50/p95/p99 latency, error rate by route, downstream service health, rate limit hits. Run it in a cluster — not a single instance!</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- DECISION FRAMEWORK -->
+  <section id="decision">
+    <h2 class="section-title"><span class="num">7</span> Decision Framework</h2>
+    <p style="color:var(--text2); margin-bottom:1rem;">Match your gateway complexity to your actual service count:</p>
+    <div class="staircase">
+      <div class="stair" style="background:var(--bg2); border:1px solid var(--border);">
+        <div class="stair-num" style="background:var(--green-bg); color:var(--green);">1</div>
+        <div>
+          <strong>1 Backend Service</strong>
+          <span style="color:var(--text2); font-size:0.85rem; margin-left:0.75rem;">→ Simple reverse proxy (NGINX, Caddy). No gateway needed.</span>
+        </div>
+      </div>
+      <div class="stair" style="background:var(--bg2); border:1px solid var(--border);">
+        <div class="stair-num" style="background:var(--cyan-bg); color:var(--cyan);">2–5</div>
+        <div>
+          <strong>2–5 Services</strong>
+          <span style="color:var(--text2); font-size:0.85rem; margin-left:0.75rem;">→ Lightweight gateway (Traefik, NGINX Plus). Basic routing + auth.</span>
+        </div>
+      </div>
+      <div class="stair" style="background:var(--bg2); border:1px solid var(--border);">
+        <div class="stair-num" style="background:var(--yellow-bg); color:var(--yellow);">10+</div>
+        <div>
+          <strong>10+ Services</strong>
+          <span style="color:var(--text2); font-size:0.85rem; margin-left:0.75rem;">→ Proper gateway with canary, protocol translation, BFF aggregation (Kong, AWS API GW).</span>
+        </div>
+      </div>
+      <div class="stair" style="background:var(--accent-bg); border:1px solid var(--accent);">
+        <div class="stair-num" style="background:var(--accent); color:#fff;">50+</div>
+        <div>
+          <strong>50+ Services</strong>
+          <span style="color:var(--text2); font-size:0.85rem; margin-left:0.75rem;">→ <strong style="color:var(--accent);">Gateway + Service Mesh</strong>. Both layers. Non-negotiable at this scale.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <h2 class="section-title"><span class="num">8</span> Quick Reference</h2>
+    <div class="cheatsheet">
+      <div class="cs-title">📋 API Gateway — Cheat Sheet</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>What it is</strong>
+          Single entry point for all external client traffic. Centralises cross-cutting concerns.
+        </div>
+        <div class="cs-item">
+          <strong>6 Jobs</strong>
+          Auth, Rate Limiting, Routing, Protocol Translation, Caching, Logging
+        </div>
+        <div class="cs-item">
+          <strong>North-South</strong>
+          External → System. This is the gateway's domain.
+        </div>
+        <div class="cs-item">
+          <strong>East-West</strong>
+          Service ↔ Service. This is the service mesh's domain (Istio/Linkerd).
+        </div>
+        <div class="cs-item">
+          <strong>Canary Deploy</strong>
+          5% → monitor → 25% → 100%. Instant rollback if errors spike.
+        </div>
+        <div class="cs-item">
+          <strong>BFF Pattern</strong>
+          1 mobile call → gateway fans out to N services → returns merged response.
+        </div>
+        <div class="cs-item">
+          <strong>Tools to use</strong>
+          Kong, AWS API GW, NGINX, Envoy, Traefik. Never build your own.
+        </div>
+        <div class="cs-item">
+          <strong>Golden Rule</strong>
+          No business logic in the gateway. Infrastructure only.
+        </div>
+        <div class="cs-item">
+          <strong>Version from day 1</strong>
+          /v1/users → /v2/users. Retrofitting versioning is painful.
+        </div>
+        <div class="cs-item">
+          <strong>Decision guide</strong>
+          1 service=proxy, 2-5=lightweight GW, 10+=proper GW, 50+=GW+mesh
+        </div>
+        <div class="cs-item">
+          <strong>Service mesh when</strong>
+          20+ services. Adds mTLS, retries, circuit breaking for internal calls.
+        </div>
+        <div class="cs-item">
+          <strong>Monitor the GW</strong>
+          It's a single point of entry. Run in cluster. Alert on p99 and error rate.
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const btn = document.getElementById('themeBtn');
+    if (html.getAttribute('data-theme') === 'dark') {
+      html.setAttribute('data-theme', 'light');
+      btn.textContent = '🌙 Dark';
+    } else {
+      html.setAttribute('data-theme', 'dark');
+      btn.textContent = '☀ Light';
+    }
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

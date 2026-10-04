@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 20 — Leader Election | 25-Day Scaling & Architecture</title>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1117; --bg2: #1a1f2e; --bg3: #242938; --border: #2d3448;
+    --text: #e2e8f0; --text2: #94a3b8; --accent: #6366f1; --accent2: #818cf8;
+    --accent-bg: rgba(99,102,241,0.12); --green: #10b981; --green-bg: rgba(16,185,129,0.12);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.12); --yellow: #f59e0b;
+    --yellow-bg: rgba(245,158,11,0.12); --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --nav-bg: rgba(15,17,23,0.92); --cyan: #06b6d4; --cyan-bg: rgba(6,182,212,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --border: #e2e8f0;
+    --text: #1e293b; --text2: #64748b; --accent: #4f46e5; --accent2: #6366f1;
+    --accent-bg: rgba(79,70,229,0.08); --green: #059669; --green-bg: rgba(5,150,105,0.08);
+    --red: #dc2626; --red-bg: rgba(220,38,38,0.08); --yellow: #d97706;
+    --yellow-bg: rgba(217,119,6,0.08); --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --nav-bg: rgba(248,250,252,0.92); --cyan: #0891b2; --cyan-bg: rgba(8,145,178,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; transition: background 0.3s, color 0.3s; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: var(--nav-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; gap: 2rem; }
+  .nav-brand { font-weight: 700; font-size: 0.9rem; color: var(--accent); white-space: nowrap; }
+  .nav-links { display: flex; gap: 0.25rem; overflow-x: auto; flex: 1; }
+  .nav-links a { color: var(--text2); text-decoration: none; font-size: 0.8rem; padding: 0.35rem 0.75rem; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+  .nav-links a:hover { color: var(--accent); background: var(--accent-bg); }
+  .theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.8rem; transition: all 0.2s; white-space: nowrap; }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  .hero { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 3rem; }
+  .hero-tag { display: inline-block; background: var(--accent-bg); color: var(--accent); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.35rem 0.85rem; border-radius: 100px; margin-bottom: 1rem; }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub { color: var(--text2); font-size: 1.05rem; max-width: 640px; }
+  section { margin-bottom: 3.5rem; opacity: 0; transform: translateY(20px); transition: opacity 0.5s, transform 0.5s; }
+  section.visible { opacity: 1; transform: none; }
+  .section-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem; }
+  .section-title .num { width: 32px; height: 32px; background: var(--accent-bg); color: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow); transition: border-color 0.2s; }
+  .card:hover { border-color: var(--accent); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; }
+  .card p, .card ul { font-size: 0.9rem; color: var(--text2); }
+  .card ul { padding-left: 1.2rem; }
+  .card ul li { margin-bottom: 0.35rem; }
+  .takeaway { background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .takeaway-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 0.4rem; }
+  .warn { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .warn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); margin-bottom: 0.4rem; }
+  .danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .danger-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 0.4rem; }
+  .success { background: var(--green-bg); border: 1px solid var(--green); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+  .success-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--green); margin-bottom: 0.4rem; }
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--text2); text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:hover td { background: var(--bg3); }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-cyan { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-purple { background: var(--accent-bg); color: var(--accent2); }
+  .svg-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+  .svg-wrap svg { display: block; margin: 0 auto; }
+  .cheatsheet { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 2rem; margin-top: 1rem; }
+  .cs-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1.25rem; }
+  .cs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+  .cs-item { background: var(--bg3); border-radius: 8px; padding: 0.85rem; font-size: 0.85rem; }
+  .cs-item strong { color: var(--accent2); display: block; margin-bottom: 0.2rem; font-size: 0.8rem; }
+  .anecdote { background: var(--bg2); border-left: 4px solid var(--yellow); border-radius: 0 12px 12px 0; padding: 1.25rem 1.5rem; margin: 0 0 1.5rem; }
+  code { background: var(--bg3); padding: 0.15rem 0.45rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; color: var(--green); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media(max-width:640px){ .two-col { grid-template-columns: 1fr; } }
+  .rule-item { display: flex; gap: 1rem; padding: 0.85rem 1rem; background: var(--bg3); border-radius: 10px; margin-bottom: 0.6rem; align-items: flex-start; }
+  .rule-num { width: 26px; height: 26px; background: var(--accent); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; flex-shrink: 0; }
+  .rule-text { font-size: 0.9rem; }
+  .rule-text strong { color: var(--accent2); }
+</style>
+</head>
+<body>
+<nav>
+  <span class="nav-brand">Day 20 · Leader Election</span>
+  <div class="nav-links">
+    <a href="#story">Story</a>
+    <a href="#why">When Needed</a>
+    <a href="#requirements">Requirements</a>
+    <a href="#approaches">Approaches</a>
+    <a href="#fencing">Fencing</a>
+    <a href="#splitbrain">Split-Brain</a>
+    <a href="#rules">Design Rules</a>
+    <a href="#cheatsheet">Cheat Sheet</a>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀️ Light</button>
+</nav>
+
+<div class="page">
+  <div class="hero">
+    <div class="hero-tag">Day 20 of 25 · Scaling & Architecture</div>
+    <h1>Leader <span>Election</span></h1>
+    <p class="hero-sub">"The cost of getting this wrong is not a mildly elevated error rate. It is divergent data, multi-day recovery, and a postmortem no one wants to write."</p>
+  </div>
+
+  <!-- STORY -->
+  <section id="story">
+    <div class="section-title"><div class="num">01</div>The Split-Brain Incident</div>
+    <div class="anecdote">
+      <strong style="color:var(--yellow)">2012 — Cloud Provider Network Partition</strong>
+      <p style="margin-top:0.5rem;font-size:0.95rem;">Network partition hit a database cluster. Two nodes both believed they were primary. Each accepted writes independently for hours.</p>
+      <p style="margin-top:0.5rem;font-size:0.95rem;">Partition healed. Two divergent copies of customer data. Reconciling took days. Some updates permanently lost.</p>
+      <p style="margin-top:0.5rem;font-size:0.95rem;"><strong>Failure mode: split-brain.</strong> When leader election fails, this is what it looks like.</p>
+    </div>
+    <div class="danger">
+      <div class="danger-label">Split-Brain Definition</div>
+      <p style="font-size:0.9rem;">Two nodes simultaneously believe they are the leader. Each accepts writes independently. On reconnection: two divergent histories. One must be discarded. Data is permanently lost. Recovery is manual and takes days.</p>
+    </div>
+  </section>
+
+  <!-- WHEN NEEDED -->
+  <section id="why">
+    <div class="section-title"><div class="num">02</div>When You Need a Leader</div>
+    <div class="card-grid">
+      <div class="card">
+        <h3>✅ Use Leader Election When</h3>
+        <ul>
+          <li><strong>Writes must be totally ordered</strong> — single primary serializes all writes</li>
+          <li><strong>Single node must own state</strong> — Kafka partition leadership</li>
+          <li><strong>Coordination must not run concurrently</strong> — distributed cron jobs, failover controllers</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>❌ Don't Use Leader When</h3>
+        <ul>
+          <li><strong>Work safely partitioned</strong> — stateless consumers processing independent tasks</li>
+          <li><strong>Leaderless replication works</strong> — Dynamo-style with conflict resolution for high-availability writes</li>
+          <li><strong>Simple mutual exclusion</strong> — a distributed lock with fencing may be enough</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- REQUIREMENTS -->
+  <section id="requirements">
+    <div class="section-title"><div class="num">03</div>Core Requirements</div>
+    <div class="two-col">
+      <div class="danger">
+        <div class="danger-label">Safety (Non-Negotiable)</div>
+        <p style="font-size:0.9rem;"><strong>AT MOST ONE leader at any time</strong> (in a given term/epoch). This cannot be relaxed. Two simultaneous leaders = split-brain = data loss.</p>
+      </div>
+      <div class="takeaway">
+        <div class="takeaway-label">Liveness</div>
+        <p style="font-size:0.9rem;">A leader is eventually elected if a majority can communicate. The system can pause during partitions — the minority side sits without a leader. That's acceptable. Having two leaders is not.</p>
+      </div>
+    </div>
+    <div class="card-grid" style="margin-top:1rem;">
+      <div class="card">
+        <h3>⚡ Fast Failover</h3>
+        <p>Seconds, not minutes. Long failover windows = extended unavailability for any work requiring a leader.</p>
+      </div>
+      <div class="card">
+        <h3>🎯 Stable Leadership</h3>
+        <p>Avoid flapping on transient network blips. Constant leader changes = constant disruption. Make timeout windows conservative relative to GC pauses and network jitter.</p>
+      </div>
+      <div class="card">
+        <h3>🔑 Fencing</h3>
+        <p>Old leader cannot continue acting after a new leader is elected. Without fencing, a slow or partitioned old leader can still commit writes. This is the overlooked half of leader election.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- APPROACHES WITH RAFT DIAGRAM -->
+  <section id="approaches">
+    <div class="section-title"><div class="num">04</div>Three Approaches</div>
+
+    <div class="svg-wrap">
+      <svg viewBox="0 0 920 500" width="100%" style="max-width:920px;font-family:-apple-system,sans-serif;">
+        <defs>
+          <marker id="rarr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#6366f1"/>
+          </marker>
+          <marker id="rarr-g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+          </marker>
+          <marker id="rarr-y" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#f59e0b"/>
+          </marker>
+        </defs>
+
+        <!-- Raft Election Flow -->
+        <text x="300" y="24" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="700">Approach 1: Raft Consensus Election Flow</text>
+
+        <!-- Term labels -->
+        <text x="50" y="55" fill="#94a3b8" font-size="10">Term 1</text>
+        <line x1="40" y1="60" x2="560" y2="60" stroke="#2d3448" stroke-width="1" stroke-dasharray="4,2"/>
+
+        <!-- Nodes in term 1 -->
+        <rect x="40" y="68" width="80" height="40" rx="8" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="80" y="84" text-anchor="middle" fill="#10b981" font-size="10" font-weight="600">Node A</text>
+        <text x="80" y="97" text-anchor="middle" fill="#94a3b8" font-size="8.5">LEADER</text>
+
+        <rect x="170" y="68" width="80" height="40" rx="8" fill="#1a1f2e" stroke="#2d3448"/>
+        <text x="210" y="84" text-anchor="middle" fill="#e2e8f0" font-size="10">Node B</text>
+        <text x="210" y="97" text-anchor="middle" fill="#94a3b8" font-size="8.5">follower</text>
+
+        <rect x="300" y="68" width="80" height="40" rx="8" fill="#1a1f2e" stroke="#2d3448"/>
+        <text x="340" y="84" text-anchor="middle" fill="#e2e8f0" font-size="10">Node C</text>
+        <text x="340" y="97" text-anchor="middle" fill="#94a3b8" font-size="8.5">follower</text>
+
+        <!-- A crashes -->
+        <rect x="40" y="130" width="80" height="36" rx="8" fill="#2a0a0a" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="80" y="147" text-anchor="middle" fill="#ef4444" font-size="10" font-weight="600">💥 Node A</text>
+        <text x="80" y="160" text-anchor="middle" fill="#94a3b8" font-size="8.5">crashes</text>
+
+        <!-- Timeout detected -->
+        <text x="250" y="155" fill="#f59e0b" font-size="10" font-weight="600">heartbeat timeout detected</text>
+        <line x1="210" y1="108" x2="210" y2="130" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="3,2"/>
+        <line x1="340" y1="108" x2="340" y2="130" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="3,2"/>
+
+        <!-- Term 2 -->
+        <text x="50" y="185" fill="#818cf8" font-size="10">Term 2 — Election</text>
+        <line x1="40" y1="190" x2="560" y2="190" stroke="#6366f1" stroke-width="1" stroke-dasharray="4,2" opacity="0.6"/>
+
+        <rect x="170" y="198" width="80" height="40" rx="8" fill="#1a1f2e" stroke="#f59e0b" stroke-width="2"/>
+        <text x="210" y="214" text-anchor="middle" fill="#f59e0b" font-size="10" font-weight="600">Node B</text>
+        <text x="210" y="228" text-anchor="middle" fill="#f59e0b" font-size="8.5">CANDIDATE term=2</text>
+
+        <!-- B requests votes -->
+        <line x1="250" y1="218" x2="300" y2="218" stroke="#6366f1" stroke-width="1.5" marker-end="url(#rarr)"/>
+        <text x="275" y="212" text-anchor="middle" fill="#818cf8" font-size="8">vote req</text>
+
+        <line x1="210" y1="238" x2="80" y2="238" stroke="#6366f1" stroke-width="1.5" marker-end="url(#rarr)"/>
+        <text x="145" y="232" text-anchor="middle" fill="#818cf8" font-size="8">vote req</text>
+
+        <rect x="300" y="198" width="80" height="40" rx="8" fill="#1a1f2e" stroke="#2d3448"/>
+        <text x="340" y="214" text-anchor="middle" fill="#e2e8f0" font-size="10">Node C</text>
+        <text x="340" y="228" text-anchor="middle" fill="#94a3b8" font-size="8.5">voting</text>
+
+        <rect x="40" y="198" width="80" height="40" rx="8" fill="#1e1010" stroke="#ef4444" stroke-width="1" opacity="0.5"/>
+        <text x="80" y="218" text-anchor="middle" fill="#94a3b8" font-size="10">Node A</text>
+        <text x="80" y="232" text-anchor="middle" fill="#94a3b8" font-size="8.5">unreachable</text>
+
+        <!-- Votes back -->
+        <line x1="300" y1="215" x2="254" y2="215" stroke="#10b981" stroke-width="1.5" marker-end="url(#rarr-g)"/>
+        <text x="277" y="209" text-anchor="middle" fill="#10b981" font-size="8">✓ vote</text>
+
+        <!-- Term 2 leader -->
+        <text x="50" y="268" fill="#10b981" font-size="10">Term 2 — Leader Elected</text>
+        <line x1="40" y1="273" x2="560" y2="273" stroke="#10b981" stroke-width="1" stroke-dasharray="4,2" opacity="0.6"/>
+
+        <rect x="170" y="282" width="100" height="40" rx="8" fill="#132316" stroke="#10b981" stroke-width="2"/>
+        <text x="220" y="299" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700">Node B</text>
+        <text x="220" y="314" text-anchor="middle" fill="#10b981" font-size="8.5">NEW LEADER term=2</text>
+
+        <rect x="300" y="282" width="80" height="40" rx="8" fill="#1a1f2e" stroke="#2d3448"/>
+        <text x="340" y="299" text-anchor="middle" fill="#e2e8f0" font-size="10">Node C</text>
+        <text x="340" y="314" text-anchor="middle" fill="#94a3b8" font-size="8.5">follower</text>
+
+        <!-- heartbeats -->
+        <line x1="270" y1="302" x2="300" y2="302" stroke="#10b981" stroke-width="1.5" stroke-dasharray="3,2" marker-end="url(#rarr-g)"/>
+        <text x="285" y="295" text-anchor="middle" fill="#94a3b8" font-size="7.5">heartbeat</text>
+
+        <!-- Key properties -->
+        <rect x="40" y="348" width="530" height="140" rx="10" fill="var(--bg3)"/>
+        <text x="305" y="368" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600">Raft Safety Properties</text>
+        <text x="305" y="386" text-anchor="middle" fill="#818cf8" font-size="9.5">Majority quorum → two leaders CANNOT both hold majority in same term</text>
+        <text x="305" y="403" text-anchor="middle" fill="#94a3b8" font-size="9.5">Terms are logical clocks — higher term always wins</text>
+        <text x="305" y="420" text-anchor="middle" fill="#94a3b8" font-size="9.5">One vote per node per term — prevents double-election</text>
+        <text x="305" y="437" text-anchor="middle" fill="#94a3b8" font-size="9.5">Log replication tied to leadership — only commits from current term after majority</text>
+        <text x="305" y="455" text-anchor="middle" fill="#10b981" font-size="9">Used by: etcd · Consul · CockroachDB · TiKV — the gold standard</text>
+        <text x="305" y="473" text-anchor="middle" fill="#f59e0b" font-size="9">⚠ Don't hand-roll Raft for production. Use an existing implementation.</text>
+
+        <!-- Approach 2: Lease-based -->
+        <rect x="600" y="30" width="310" height="200" rx="12" fill="none" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.7"/>
+        <text x="755" y="52" text-anchor="middle" fill="#06b6d4" font-size="11" font-weight="700">Approach 2: Lease-Based</text>
+
+        <rect x="620" y="66" width="130" height="36" rx="8" fill="#0a1e24" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="685" y="82" text-anchor="middle" fill="#06b6d4" font-size="10" font-weight="600">Leader Node</text>
+        <text x="685" y="95" text-anchor="middle" fill="#94a3b8" font-size="8.5">holds lease until T+30s</text>
+
+        <rect x="770" y="66" width="120" height="36" rx="8" fill="#1a1f2e" stroke="#2d3448"/>
+        <text x="830" y="82" text-anchor="middle" fill="#e2e8f0" font-size="10">Coord Service</text>
+        <text x="830" y="95" text-anchor="middle" fill="#94a3b8" font-size="8.5">etcd / ZooKeeper</text>
+
+        <line x1="750" y1="84" x2="770" y2="84" stroke="#06b6d4" stroke-width="1.5" marker-end="url(#rarr)"/>
+        <text x="760" y="78" text-anchor="middle" fill="#94a3b8" font-size="7.5">renew</text>
+
+        <rect x="620" y="122" width="270" height="90" rx="8" fill="var(--bg3)"/>
+        <text x="755" y="140" text-anchor="middle" fill="#94a3b8" font-size="9.5">Renew before expiry → remain leader</text>
+        <text x="755" y="156" text-anchor="middle" fill="#94a3b8" font-size="9.5">Fail to renew → another node acquires</text>
+        <text x="755" y="172" text-anchor="middle" fill="#f59e0b" font-size="9">⚠ CRITICAL: stop all work when</text>
+        <text x="755" y="186" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600">lease MIGHT have expired</text>
+        <text x="755" y="202" text-anchor="middle" fill="#94a3b8" font-size="8.5">(not when you notice loss) — fencing rule</text>
+
+        <!-- Approach 3: ZK/etcd recipes -->
+        <rect x="600" y="248" width="310" height="120" rx="12" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.7"/>
+        <text x="755" y="270" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700">Approach 3: ZooKeeper / etcd Recipes</text>
+        <text x="755" y="290" text-anchor="middle" fill="#94a3b8" font-size="9.5">K8s controller managers use lease-based election</text>
+        <text x="755" y="306" text-anchor="middle" fill="#94a3b8" font-size="9.5">on top of etcd. Solid when you already run a</text>
+        <text x="755" y="322" text-anchor="middle" fill="#94a3b8" font-size="9.5">consistent coordination service.</text>
+        <text x="755" y="342" text-anchor="middle" fill="#10b981" font-size="9">✓ Battle-tested · No new infrastructure · K8s default</text>
+
+        <!-- GC pause warning -->
+        <rect x="600" y="386" width="310" height="102" rx="12" fill="#1a1808" stroke="#f59e0b" stroke-width="1.5"/>
+        <text x="755" y="406" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="600">⚠ JVM GC Pause Footgun</text>
+        <text x="755" y="424" text-anchor="middle" fill="#94a3b8" font-size="9.5">Long GC pauses in JVM languages can exceed</text>
+        <text x="755" y="440" text-anchor="middle" fill="#94a3b8" font-size="9.5">lease timeout. Leader stops renewing during GC.</text>
+        <text x="755" y="456" text-anchor="middle" fill="#94a3b8" font-size="9.5">Election triggered. GC completes. Now TWO leaders.</text>
+        <text x="755" y="474" text-anchor="middle" fill="#f59e0b" font-size="9">Set lease timeouts >> expected max GC pause</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- FENCING -->
+  <section id="fencing">
+    <div class="section-title"><div class="num">05</div>Fencing — The Missing Piece</div>
+
+    <div class="svg-wrap">
+      <svg viewBox="0 0 900 320" width="100%" style="max-width:900px;font-family:-apple-system,sans-serif;">
+        <defs>
+          <marker id="farr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#6366f1"/>
+          </marker>
+          <marker id="farr-g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+          </marker>
+          <marker id="farr-r" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#ef4444"/>
+          </marker>
+        </defs>
+
+        <!-- Without fencing -->
+        <rect x="10" y="10" width="420" height="300" rx="12" fill="none" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.5"/>
+        <text x="220" y="34" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="700">Without Fencing — Split-Brain</text>
+
+        <rect x="40" y="50" width="100" height="36" rx="8" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="90" y="68" text-anchor="middle" fill="#10b981" font-size="10">Old Leader A</text>
+        <text x="90" y="81" text-anchor="middle" fill="#94a3b8" font-size="8.5">term=1 (slow)</text>
+
+        <rect x="290" y="50" width="100" height="36" rx="8" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="340" y="68" text-anchor="middle" fill="#10b981" font-size="10">New Leader B</text>
+        <text x="340" y="81" text-anchor="middle" fill="#94a3b8" font-size="8.5">term=2 (elected)</text>
+
+        <!-- Partition bar -->
+        <rect x="195" y="50" width="50" height="36" rx="4" fill="#2a0a0a" stroke="#ef4444" stroke-width="1"/>
+        <text x="220" y="68" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600">⚡ NET</text>
+        <text x="220" y="81" text-anchor="middle" fill="#ef4444" font-size="9">SPLIT</text>
+
+        <rect x="40" y="112" width="340" height="36" rx="8" fill="#1a1f2e" stroke="#2d3448"/>
+        <text x="210" y="130" text-anchor="middle" fill="#e2e8f0" font-size="10">Storage Layer</text>
+        <text x="210" y="144" text-anchor="middle" fill="#94a3b8" font-size="8.5">accepts writes from anyone</text>
+
+        <line x1="90" y1="86" x2="90" y2="112" stroke="#ef4444" stroke-width="1.5" marker-end="url(#farr-r)"/>
+        <text x="50" y="104" fill="#ef4444" font-size="8">writes!</text>
+
+        <line x1="340" y1="86" x2="340" y2="112" stroke="#10b981" stroke-width="1.5" marker-end="url(#farr-g)"/>
+        <text x="345" y="104" fill="#10b981" font-size="8">writes!</text>
+
+        <rect x="30" y="170" width="370" height="60" rx="8" fill="#2a0a0a" stroke="#ef4444" stroke-width="1"/>
+        <text x="215" y="192" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700">Both writing = divergent state</text>
+        <text x="215" y="210" text-anchor="middle" fill="#94a3b8" font-size="9.5">A: order=5, balance=990 | B: order=5, balance=995</text>
+        <text x="215" y="225" text-anchor="middle" fill="#94a3b8" font-size="8.5">Partition heals → irreconcilable conflict → manual recovery</text>
+
+        <text x="215" y="272" text-anchor="middle" fill="#f59e0b" font-size="10">Election alone is NOT enough.</text>
+        <text x="215" y="289" text-anchor="middle" fill="#94a3b8" font-size="9">Any design without a fencing story is incomplete.</text>
+
+        <!-- With fencing -->
+        <rect x="470" y="10" width="420" height="300" rx="12" fill="none" stroke="#10b981" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.5"/>
+        <text x="680" y="34" text-anchor="middle" fill="#10b981" font-size="12" font-weight="700">With Fencing Tokens</text>
+
+        <rect x="500" y="50" width="100" height="36" rx="8" fill="#1e1818" stroke="#2d3448" opacity="0.6"/>
+        <text x="550" y="68" text-anchor="middle" fill="#94a3b8" font-size="10">Old Leader A</text>
+        <text x="550" y="81" text-anchor="middle" fill="#94a3b8" font-size="8.5">token=1 (stale)</text>
+
+        <rect x="750" y="50" width="100" height="36" rx="8" fill="#132316" stroke="#10b981" stroke-width="1.5"/>
+        <text x="800" y="68" text-anchor="middle" fill="#10b981" font-size="10">New Leader B</text>
+        <text x="800" y="81" text-anchor="middle" fill="#94a3b8" font-size="8.5">token=2 (current)</text>
+
+        <rect x="510" y="130" width="350" height="36" rx="8" fill="#0a1e24" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="685" y="148" text-anchor="middle" fill="#06b6d4" font-size="10">Storage Layer — Checks Fencing Token</text>
+        <text x="685" y="162" text-anchor="middle" fill="#94a3b8" font-size="8.5">rejects any write with token &lt; max_seen_token</text>
+
+        <!-- A tries to write -->
+        <line x1="550" y1="86" x2="560" y2="130" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#farr-r)"/>
+        <text x="505" y="118" text-anchor="middle" fill="#ef4444" font-size="8">write(token=1)</text>
+
+        <!-- Rejected -->
+        <rect x="510" y="180" width="160" height="30" rx="6" fill="#2a0a0a" stroke="#ef4444" stroke-width="1"/>
+        <text x="590" y="200" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600">REJECTED: stale token</text>
+
+        <line x1="560" y1="166" x2="578" y2="180" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,2"/>
+
+        <!-- B writes fine -->
+        <line x1="800" y1="86" x2="800" y2="130" stroke="#10b981" stroke-width="1.5" marker-end="url(#farr-g)"/>
+        <text x="810" y="118" text-anchor="middle" fill="#10b981" font-size="8">write(token=2)</text>
+
+        <rect x="720" y="180" width="130" height="30" rx="6" fill="#132316" stroke="#10b981" stroke-width="1"/>
+        <text x="785" y="200" text-anchor="middle" fill="#10b981" font-size="9" font-weight="600">ACCEPTED ✓</text>
+
+        <line x1="800" y1="166" x2="785" y2="180" stroke="#10b981" stroke-width="1" stroke-dasharray="3,2"/>
+
+        <rect x="490" y="226" width="380" height="70" rx="8" fill="var(--bg3)"/>
+        <text x="680" y="248" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">Fencing Token Mechanisms</text>
+        <text x="680" y="264" text-anchor="middle" fill="#94a3b8" font-size="9.5">Epoch numbers on every write · Storage layer rejects stale tokens</text>
+        <text x="680" y="280" text-anchor="middle" fill="#94a3b8" font-size="9.5">Monotonically increasing on each election · STONITH as alternative</text>
+      </svg>
+    </div>
+
+    <div class="danger">
+      <div class="danger-label">🔑 The Fencing Rule — Non-Negotiable</div>
+      <p style="font-size:0.9rem;"><strong>Election alone is NOT enough. You need fencing.</strong> Without it, a slow or partitioned old leader can still commit writes after a new leader is active, causing split-brain. Every leader election design without a fencing story is incomplete.</p>
+    </div>
+  </section>
+
+  <!-- SPLIT-BRAIN CAUSES -->
+  <section id="splitbrain">
+    <div class="section-title"><div class="num">06</div>Split-Brain — Root Causes</div>
+    <div class="card-grid">
+      <div class="card" style="border-left:3px solid var(--red)">
+        <h3>Old Leader Not Notified</h3>
+        <p>Old leader never learns it was demoted after a partition. Keeps serving writes, thinking it's still in charge.</p>
+      </div>
+      <div class="card" style="border-left:3px solid var(--red)">
+        <h3>Lease Expiry Not Respected</h3>
+        <p>Leader's lease expires but it doesn't stop. Common with JVM GC pauses — GC freezes the world, lease expires, GC completes, leader continues as if nothing happened.</p>
+      </div>
+      <div class="card" style="border-left:3px solid var(--red)">
+        <h3>Client-Side Caching</h3>
+        <p>Clients cache the old leader's address and keep sending writes after the election. No fencing check = writes accepted by demoted node.</p>
+      </div>
+      <div class="card" style="border-left:3px solid var(--red)">
+        <h3>Missing Storage Fencing</h3>
+        <p>Fencing tokens generated but storage layer doesn't check them. All the ceremony of fencing, none of the protection.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- DESIGN RULES -->
+  <section id="rules">
+    <div class="section-title"><div class="num">07</div>Practical Design Rules</div>
+    <div class="rule-item">
+      <div class="rule-num">1</div>
+      <div class="rule-text"><strong>Use existing consensus implementations.</strong> Don't hand-roll Raft or Paxos for production. etcd, Consul, ZooKeeper exist for this reason.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">2</div>
+      <div class="rule-text"><strong>Tie leadership to term/epoch and ENFORCE on every write.</strong> Storage must reject operations from stale leaders. Not optional.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">3</div>
+      <div class="rule-text"><strong>Make lease timeouts conservative relative to network and GC pauses.</strong> Aggressive timeouts = unnecessary failovers. Long GC pauses in JVM = classic footgun.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">4</div>
+      <div class="rule-text"><strong>Distinguish leader-side failure detection from client-side routing.</strong> Clients should not invent their own idea of who the leader is based on timeouts.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">5</div>
+      <div class="rule-text"><strong>TEST partition behavior explicitly.</strong> Chaos experiments. Unit tests will not catch split-brain scenarios. You need to actually partition the network.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">6</div>
+      <div class="rule-text"><strong>Observe leadership changes.</strong> Track metrics for: leader transitions, election duration, lease renewals, rejected fencing tokens. Alert on unexpected patterns.</div>
+    </div>
+
+    <div class="table-wrap" style="margin-top:1.5rem;">
+      <table>
+        <thead>
+          <tr>
+            <th>Approach</th>
+            <th>Mechanism</th>
+            <th>Used By</th>
+            <th>Fencing Built-in?</th>
+            <th>Operational Complexity</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Raft Consensus</strong></td>
+            <td>Term numbers + majority votes</td>
+            <td>etcd, Consul, CockroachDB, TiKV</td>
+            <td><span class="badge badge-green">Yes (terms)</span></td>
+            <td><span class="badge badge-yellow">Medium</span></td>
+          </tr>
+          <tr>
+            <td><strong>Lease-based</strong></td>
+            <td>Time-bounded lock from coord service</td>
+            <td>K8s controller manager, cloud APIs</td>
+            <td><span class="badge badge-yellow">Requires care</span></td>
+            <td><span class="badge badge-green">Low (if using K8s)</span></td>
+          </tr>
+          <tr>
+            <td><strong>ZooKeeper ephemeral nodes</strong></td>
+            <td>Ephemeral znode + watches</td>
+            <td>Legacy Kafka, HBase, older systems</td>
+            <td><span class="badge badge-yellow">Manual fencing tokens</span></td>
+            <td><span class="badge badge-red">High (ZK ops)</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- CHEAT SHEET -->
+  <section id="cheatsheet">
+    <div class="section-title"><div class="num">08</div>Quick Reference</div>
+    <div class="cheatsheet">
+      <div class="cs-title">⚡ Leader Election Cheat Sheet</div>
+      <div class="cs-grid">
+        <div class="cs-item">
+          <strong>Safety (non-negotiable)</strong>
+          AT MOST ONE leader per term. Two simultaneous leaders = split-brain = data loss.
+        </div>
+        <div class="cs-item">
+          <strong>Raft terms</strong>
+          Logical clocks. Higher term always wins. One vote per node per term. Majority required.
+        </div>
+        <div class="cs-item">
+          <strong>Lease-based critical rule</strong>
+          Stop work when lease MIGHT have expired, not when you notice loss. Violating this = split-brain.
+        </div>
+        <div class="cs-item">
+          <strong>Fencing tokens</strong>
+          Every write carries the current epoch. Storage rejects writes with stale epoch. Non-negotiable.
+        </div>
+        <div class="cs-item">
+          <strong>JVM GC footgun</strong>
+          Long GC pauses can exceed lease timeout. Leader thinks it's alive; it isn't. Set conservative timeouts.
+        </div>
+        <div class="cs-item">
+          <strong>Chaos test</strong>
+          Unit tests won't find split-brain. Must actually partition the network in integration tests.
+        </div>
+        <div class="cs-item">
+          <strong>Don't hand-roll</strong>
+          Use etcd, Consul, ZooKeeper, or K8s lease API. Distributed consensus is subtle and brutal.
+        </div>
+        <div class="cs-item">
+          <strong>Observability</strong>
+          Track: leader transitions, election duration, lease renewals, rejected fencing tokens.
+        </div>
+        <div class="cs-item">
+          <strong>When election is wrong tool</strong>
+          Stateless work, leaderless replication, simple mutual exclusion → distributed lock may suffice.
+        </div>
+      </div>
+    </div>
+
+    <div class="danger" style="margin-top:2rem;">
+      <div class="danger-label">💀 The Takeaway</div>
+      <p style="font-size:1rem;font-weight:600;">"The cost of getting this wrong is not a mildly elevated error rate. It is divergent data, multi-day recovery, and a postmortem no one wants to write."</p>
+    </div>
+  </section>
+</div>
+
+<script>
+function toggleTheme() {
+  const html = document.documentElement;
+  const btn = document.querySelector('.theme-btn');
+  if (html.dataset.theme === 'dark') {
+    html.dataset.theme = 'light';
+    btn.textContent = '🌙 Dark';
+  } else {
+    html.dataset.theme = 'dark';
+    btn.textContent = '☀️ Light';
+  }
+}
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.08 });
+document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

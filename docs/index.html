@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Coding Practice — Visualizations</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;
+  --surface:#1a1d27;
+  --surface2:#232636;
+  --border:#2e3248;
+  --accent:#7c6af7;
+  --accent2:#5eead4;
+  --text:#e2e8f0;
+  --muted:#64748b;
+  --open:#4ade80;
+  --close:#f87171;
+}
+body{
+  font-family:'Segoe UI',system-ui,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  padding:32px 16px 80px;
+}
+.page{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+
+/* ── Header ── */
+.header{text-align:center;padding:32px 16px 24px;border-bottom:1px solid var(--border)}
+.header h1{font-size:2rem;font-weight:800;letter-spacing:-.03em;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header p{color:var(--muted);margin-top:8px;font-size:.9rem;max-width:540px;margin-inline:auto}
+.header .stats{display:flex;justify-content:center;gap:24px;margin-top:16px}
+.stat{text-align:center}
+.stat-num{font-size:1.6rem;font-weight:800;color:var(--accent)}
+.stat-label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+
+/* ── Search ── */
+.search-wrap{position:relative}
+.search-wrap input{
+  width:100%;padding:12px 16px 12px 42px;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  color:var(--text);font-size:.9rem;outline:none;transition:border-color .2s;
+}
+.search-wrap input:focus{border-color:var(--accent)}
+.search-wrap .icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:1rem;pointer-events:none}
+
+/* ── Category section ── */
+.category{display:flex;flex-direction:column;gap:12px}
+.category-header{display:flex;align-items:center;gap:10px}
+.category-title{font-size:1rem;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:.07em}
+.category-count{font-size:.72rem;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:2px 8px;color:var(--muted)}
+.category-line{flex:1;height:1px;background:var(--border)}
+
+/* ── Card grid ── */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+
+/* ── Viz card ── */
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:16px 18px;text-decoration:none;color:var(--text);
+  display:flex;flex-direction:column;gap:8px;
+  transition:border-color .2s,transform .15s,box-shadow .2s;
+  position:relative;overflow:hidden;
+}
+.card::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,var(--accent)08,transparent 60%);
+  opacity:0;transition:opacity .2s;
+}
+.card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 24px #0006}
+.card:hover::before{opacity:1}
+.card-title{font-size:.95rem;font-weight:700;display:flex;align-items:center;gap:7px}
+.card-title .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.card-desc{font-size:.78rem;color:var(--muted);line-height:1.55}
+.card-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}
+.tag{font-size:.65rem;padding:2px 7px;border-radius:5px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.card-arrow{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:1rem;transition:color .2s,right .15s}
+.card:hover .card-arrow{color:var(--accent);right:10px}
+
+/* category dot colors */
+.dot-dp     {background:#7c6af7}
+.dot-blind75{background:#5eead4}
+.dot-liked  {background:#fb923c}
+.dot-tree   {background:#4ade80}
+.dot-graph  {background:#f472b6}
+.dot-sliding{background:#60a5fa}
+.dot-stack  {background:#fbbf24}
+
+/* ── Empty state ── */
+.empty{text-align:center;padding:40px;color:var(--muted);font-size:.9rem;display:none}
+
+/* ── Footer ── */
+.footer{text-align:center;color:var(--muted);font-size:.75rem;padding-top:16px;border-top:1px solid var(--border)}
+.footer a{color:var(--accent);text-decoration:none}
+.footer a:hover{text-decoration:underline}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Coding Practice Visualizations</h1>
+    <p>Interactive step-by-step visualizations for algorithms and data structures — watch the logic unfold.</p>
+    <div class="stats">
+      <div class="stat"><div class="stat-num" id="total-count">1</div><div class="stat-label">Visualizations</div></div>
+      <div class="stat"><div class="stat-num" id="cat-count">1</div><div class="stat-label">Categories</div></div>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <div class="search-wrap">
+    <span class="icon">🔍</span>
+    <input type="text" id="search-input" placeholder="Search by name, topic, or tag…" oninput="filterCards()"/>
+  </div>
+
+  <!-- Categories -->
+  <div id="categories-root"></div>
+
+  <div class="empty" id="empty-state">No visualizations match your search.</div>
+
+  <!-- Footer -->
+  <div class="footer">
+    Built with ❤️ · 
+    <a href="https://github.com/rakushwa2401/coding-practice" target="_blank">GitHub Repo</a>
+  </div>
+
+</div>
+
+<script>
+// ─── DATA ────────────────────────────────────────────────────────────────────
+// Add new entries here whenever you create a new visualization HTML file.
+// path is relative to docs/ root.
+const VISUALIZATIONS = [
+  {
+    category: "dp",
+    categoryLabel: "Dynamic Programming",
+    dotClass: "dot-dp",
+    title: "Valid Parentheses Grid",
+    desc: "DFS + memoization to find a balanced parentheses path from top-left to bottom-right of a grid. Watch the recursion tree grow, balance track, and memo table fill.",
+    tags: ["dfs", "memoization", "grid", "backtracking"],
+    path: "dp/ValidParenthesesGrid.html"
+  },
+  // ── Add more entries below as you create new visualizations ──
+  // {
+  //   category: "blind75",
+  //   categoryLabel: "Blind 75",
+  //   dotClass: "dot-blind75",
+  //   title: "Two Sum",
+  //   desc: "Hash map approach to find two numbers that add up to a target.",
+  //   tags: ["array", "hash map", "O(n)"],
+  //   path: "blind75/TwoSum.html"
+  // },
+];
+
+// ─── BUILD UI ─────────────────────────────────────────────────────────────────
+const root = document.getElementById('categories-root');
+
+function buildUI(items) {
+  root.innerHTML = '';
+
+  // Group by category
+  const groups = {};
+  items.forEach(v => {
+    if (!groups[v.category]) groups[v.category] = { label: v.categoryLabel, dotClass: v.dotClass, items: [] };
+    groups[v.category].items.push(v);
+  });
+
+  const catKeys = Object.keys(groups);
+  document.getElementById('total-count').textContent = items.length;
+  document.getElementById('cat-count').textContent = catKeys.length;
+
+  if (catKeys.length === 0) {
+    document.getElementById('empty-state').style.display = 'block';
+    return;
+  }
+  document.getElementById('empty-state').style.display = 'none';
+
+  catKeys.forEach(cat => {
+    const { label, dotClass, items } = groups[cat];
+
+    const section = document.createElement('div');
+    section.className = 'category';
+
+    // header
+    section.innerHTML = `
+      <div class="category-header">
+        <span class="category-title">${label}</span>
+        <span class="category-count">${items.length}</span>
+        <div class="category-line"></div>
+      </div>
+      <div class="cards" id="cards-${cat}"></div>
+    `;
+    root.appendChild(section);
+
+    const cardsEl = section.querySelector(`#cards-${cat}`);
+    items.forEach(v => {
+      const a = document.createElement('a');
+      a.className = 'card';
+      a.href = v.path;
+      a.innerHTML = `
+        <div class="card-title">
+          <span class="dot ${dotClass}"></span>
+          ${v.title}
+        </div>
+        <div class="card-desc">${v.desc}</div>
+        <div class="card-tags">${v.tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+        <span class="card-arrow">→</span>
+      `;
+      cardsEl.appendChild(a);
+    });
+  });
+}
+
+// ─── SEARCH ──────────────────────────────────────────────────────────────────
+function filterCards() {
+  const q = document.getElementById('search-input').value.toLowerCase().trim();
+  if (!q) { buildUI(VISUALIZATIONS); return; }
+  const filtered = VISUALIZATIONS.filter(v =>
+    v.title.toLowerCase().includes(q) ||
+    v.categoryLabel.toLowerCase().includes(q) ||
+    v.desc.toLowerCase().includes(q) ||
+    v.tags.some(t => t.toLowerCase().includes(q))
+  );
+  buildUI(filtered);
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+buildUI(VISUALIZATIONS);
+</script>
+</body>
+</html>

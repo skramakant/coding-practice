@@ -74,7 +74,7 @@ public class Main {
 //        wordDictionary();
 //        letterCombination();
           //combinationSum();
-        test();
+        MostBookedRoom();
     }
     public static void threadMessagePass() {
         BlockingQueue<Integer> in = new LinkedBlockingQueue<>();
@@ -160,7 +160,7 @@ public class Main {
     }
 
 
-    public static void test() {
+    public static void MostBookedRoom() {
         //int[] input = new int[]{ 20,10,20,30,40,50,80,10,90 };
         //int[] input = new int[]{ 20,10,20,30,40,50,80,10,5 };
         //System.out.println(Solution.findMaxProfitDays(new int[]{20, 10, 20, 30, 40, 50, 80, 10, 90}));

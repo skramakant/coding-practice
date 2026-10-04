@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Valid Parentheses Grid — DP Visualization</title>
+<style>
+/* ── Reset & tokens ───────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117; --surface:#1a1d27; --surface2:#232636; --border:#2e3248;
+  --accent:#7c6af7; --accent2:#5eead4;
+  --open:#4ade80; --close:#f87171; --warn:#fb923c;
+  --text:#e2e8f0; --muted:#64748b;
+  --gs:72px;
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px 14px 60px}
+h1{font-size:1.5rem;font-weight:700;letter-spacing:-.02em}
+h2{font-size:.88rem;font-weight:700;color:var(--accent2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em}
+.page{width:100%;max-width:1400px;display:flex;flex-direction:column;gap:18px}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+.header{text-align:center;padding:22px 16px 16px;border-bottom:1px solid var(--border)}
+.header p{color:var(--muted);margin-top:5px;font-size:.85rem}
+
+/* ── Card ─────────────────────────────────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
+
+/* ── Preset bar ───────────────────────────────────────────────────────── */
+.preset-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.preset-btn{font-size:.75rem;padding:5px 11px;border-radius:7px;border:1px solid var(--border);
+  background:var(--surface2);color:var(--text);cursor:pointer;transition:background .15s}
+.preset-btn:hover{background:#2a2d40}
+#custom-grid-input{width:100%;background:var(--surface2);border:1px solid var(--border);
+  border-radius:6px;color:var(--text);padding:7px 10px;font-family:'Courier New',monospace;
+  font-size:.8rem;resize:vertical;margin-top:6px}
+
+/* ── Buttons ──────────────────────────────────────────────────────────── */
+button{padding:7px 15px;border-radius:8px;border:none;font-size:.82rem;font-weight:700;cursor:pointer;transition:opacity .15s}
+button:hover{opacity:.85}
+button:disabled{opacity:.35;cursor:default}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-success{background:#16a34a;color:#fff}
+.btn-neutral{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-warn{background:var(--warn);color:#000}
+
+/* ── Main 2-col: grid | tree ──────────────────────────────────────────── */
+/* Grid column: fixed min-width so it never shrinks when tree grows wide  */
+.main-row{display:grid;grid-template-columns:minmax(360px,auto) 1fr;gap:16px;align-items:start}
+@media(max-width:900px){.main-row{grid-template-columns:1fr}}
+/* tree panel must not bleed outside its column */
+#tree-panel{min-width:0;overflow:hidden}
+
+/* ── Bottom 2-col: call-stack | memo ─────────────────────────────────── */
+.bottom-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.bottom-row{grid-template-columns:1fr}}
+
+/* ════════════════════════════════════════════════════════════════════════
+   GRID PANEL
+════════════════════════════════════════════════════════════════════════ */
+#grid-table{border-collapse:separate;border-spacing:5px}
+#grid-table td{
+  width:var(--gs);height:var(--gs);border-radius:10px;border:2px solid var(--border);
+  text-align:center;vertical-align:middle;position:relative;
+  transition:background .22s,border-color .22s;user-select:none}
+.cell-sym{font-size:1.5rem;font-weight:700;display:block}
+.cell-open{color:var(--open)}.cell-close{color:var(--close)}
+.cell-rc{position:absolute;bottom:3px;right:6px;font-size:.55rem;color:var(--muted)}
+.cell-memo{position:absolute;top:3px;left:5px;font-size:.55rem;color:var(--accent2)}
+
+.state-current {background:#312e81!important;border-color:var(--accent)!important;box-shadow:0 0 14px 3px #7c6af766}
+.state-hit     {background:#14532d!important;border-color:var(--open)!important}
+.state-pruned  {background:#7f1d1d!important;border-color:var(--close)!important}
+.state-onpath  {background:#1c2951!important;border-color:#3b82f6!important}
+.state-memoused{background:#1a2e28!important;border-color:#10b981!important}
+.state-start   {border-color:var(--accent2)!important}
+.state-end     {border-color:#fbbf24!important}
+
+#arrow-svg{position:absolute;top:0;left:0;pointer-events:none}
+
+/* balance */
+#balance-bar-wrap{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.bt{width:28px;height:28px;border-radius:5px;display:flex;align-items:center;justify-content:center;
+  font-size:1rem;font-weight:700;border:2px solid transparent;transition:all .2s}
+.bt-open{background:#14532d;color:var(--open);border-color:var(--open)}
+
+/* path string */
+#path-display{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
+.path-sym{width:26px;height:26px;border-radius:4px;font-weight:700;font-size:.95rem;
+  display:flex;align-items:center;justify-content:center}
+.ps-open{background:#14532d;color:var(--open)}.ps-close{background:#7f1d1d;color:var(--close)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:10px}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:.73rem;color:var(--muted)}
+.leg-dot{width:12px;height:12px;border-radius:3px}
+
+/* ════════════════════════════════════════════════════════════════════════
+   RECURSION TREE PANEL
+════════════════════════════════════════════════════════════════════════ */
+/* tree-scroll is the scroll container — fixed height, scroll in both axes */
+/* The SVG inside can be arbitrarily large; it will NOT push the parent.   */
+#tree-scroll{
+  width:100%;
+  height:420px;          /* fixed height — scrolls vertically if tree is deep  */
+  overflow:auto;         /* scrollable both axes                                */
+  background:var(--surface2);
+  border-radius:8px;
+  border:1px solid var(--border);
+  position:relative;
+  /* prevent the SVG from escaping and resizing the parent column */
+  contain: strict;
+}
+#tree-svg{
+  display:block;
+  /* explicit size set in JS — parent does NOT grow to fit */
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   CALL STACK PANEL
+════════════════════════════════════════════════════════════════════════ */
+#call-stack{max-height:260px;overflow-y:auto;display:flex;flex-direction:column-reverse;gap:3px}
+.stack-frame{
+  background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+  padding:5px 10px;font-size:.75rem;font-family:'Courier New',monospace;transition:background .2s}
+.stack-frame.sf-active{background:#1e1b4b;border-color:var(--accent)}
+.frame-badge{display:inline-block;padding:1px 5px;border-radius:4px;font-size:.65rem;font-weight:700;margin-left:5px}
+.badge-pruned{background:#431407;color:var(--warn)}
+.badge-hit   {background:#14532d;color:var(--open)}
+.badge-memo  {background:#1a2e28;color:var(--accent2)}
+
+/* ════════════════════════════════════════════════════════════════════════
+   MEMO TABLE PANEL
+════════════════════════════════════════════════════════════════════════ */
+#memo-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;max-height:260px;overflow-y:auto}
+.memo-entry{
+  background:var(--surface2);border:1px solid var(--border);border-radius:5px;
+  padding:4px 8px;font-size:.72rem;font-family:'Courier New',monospace;
+  display:flex;justify-content:space-between;align-items:center}
+.memo-true {border-left:3px solid var(--open)}
+.memo-false{border-left:3px solid var(--close)}
+
+/* ════════════════════════════════════════════════════════════════════════
+   STEP LOG + CONTROLS
+════════════════════════════════════════════════════════════════════════ */
+#step-log{
+  background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:12px 14px;font-size:.85rem;min-height:68px;line-height:1.65}
+.highlight{color:var(--accent2);font-weight:700}
+.hl-open{color:var(--open);font-weight:700}
+.hl-close{color:var(--close);font-weight:700}
+.hl-warn{color:var(--warn);font-weight:700}
+.hl-acc{color:var(--accent);font-weight:700}
+
+.playback-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+input[type=range]{accent-color:var(--accent)}
+
+#progress-wrap{width:100%;height:5px;background:var(--surface2);border-radius:3px;margin-top:8px}
+#progress-bar{height:100%;border-radius:3px;background:var(--accent);transition:width .2s;width:0%}
+
+#result-banner{display:none;padding:12px 18px;border-radius:9px;font-size:.95rem;font-weight:700;text-align:center;margin-top:10px}
+.result-true {background:#14532d;color:var(--open);border:2px solid var(--open)}
+.result-false{background:#7f1d1d;color:var(--close);border:2px solid var(--close)}
+
+/* early checks */
+.ec-row{display:flex;flex-direction:column;gap:6px;font-size:.8rem}
+
+/* scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--surface2)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ── Header ──────────────────────────────────────────────────────────── -->
+<div class="header card">
+  <h1>Valid Parentheses Grid — DP Visualization</h1>
+  <p>Watch DFS explore every path from top-left → bottom-right, maintaining balance, pruning dead ends, and memoizing states.</p>
+</div>
+
+<!-- ── Preset picker ───────────────────────────────────────────────────── -->
+<div class="card">
+  <h2>Test Grid</h2>
+  <div class="preset-row">
+    <button class="preset-btn" onclick="loadPreset(0)">3×3 Valid ✅</button>
+    <button class="preset-btn" onclick="loadPreset(1)">3×3 Invalid ❌</button>
+    <button class="preset-btn" onclick="loadPreset(2)">2×4 Tricky 🤔</button>
+    <button class="preset-btn" onclick="loadPreset(3)">4×4 Complex 🧩</button>
+    <button class="preset-btn" onclick="loadPreset(4)">1×1 Odd ⚡</button>
+    <button class="btn-primary" style="font-size:.75rem;padding:5px 11px" onclick="loadCustomGrid()">Load Custom ↩</button>
+  </div>
+  <textarea id="custom-grid-input" rows="2" placeholder='Custom JSON e.g. [["(","(",")"],[")","(",")"],[")","(",")"]}'></textarea>
+</div>
+
+<!-- ── Step log + playback ─────────────────────────────────────────────── -->
+<div class="card">
+  <div style="display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start">
+    <div>
+      <h2>What's happening</h2>
+      <div id="step-log">Press <b>▶ Start</b> to begin the simulation.</div>
+      <div id="progress-wrap"><div id="progress-bar"></div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:260px">
+      <h2>Playback</h2>
+      <div class="playback-row">
+        <button class="btn-success" id="btn-start" onclick="startSim()">▶ Auto-play</button>
+        <button class="btn-neutral" id="btn-pause" onclick="pauseSim()" disabled>⏸ Pause</button>
+        <button class="btn-primary" id="btn-step"  onclick="stepOnce()">Step →</button>
+        <button class="btn-warn"    id="btn-reset" onclick="resetSim()">↺ Reset</button>
+      </div>
+      <div class="playback-row">
+        <span style="font-size:.8rem;color:var(--muted)">Speed:</span>
+        <input type="range" id="speed-slider" min="1" max="10" value="4" style="width:100px">
+        <span id="speed-label" style="font-size:.8rem;color:var(--muted)">4×</span>
+      </div>
+      <div id="result-banner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN ROW: Grid | Recursion Tree ────────────────────────────────── -->
+<div class="main-row">
+
+  <!-- Grid panel -->
+  <div class="card" style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+      <h2>Grid</h2>
+      <div class="legend">
+        <div class="leg-item"><div class="leg-dot" style="background:#312e81;border:1px solid var(--accent)"></div>Active</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#1c2951;border:1px solid #3b82f6"></div>On path</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#14532d;border:1px solid var(--open)"></div>Valid end</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#7f1d1d;border:1px solid var(--close)"></div>Pruned</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#1a2e28;border:1px solid #10b981"></div>Memo hit</div>
+      </div>
+    </div>
+
+    <!-- Grid table + SVG arrows -->
+    <div style="display:flex;justify-content:center">
+      <div style="position:relative;display:inline-block">
+        <table id="grid-table"></table>
+        <svg id="arrow-svg" width="0" height="0"></svg>
+      </div>
+    </div>
+
+    <!-- Balance bar -->
+    <div>
+      <p style="font-size:.75rem;color:var(--muted);margin-bottom:3px">
+        Balance — each <span style="color:var(--open)">(</span> +1, each <span style="color:var(--close)">)</span> −1:
+      </p>
+      <div id="balance-bar-wrap"></div>
+      <p id="balance-num" style="font-size:.95rem;font-weight:700;margin-top:4px">Balance: <span>0</span></p>
+    </div>
+
+    <!-- Path string -->
+    <div>
+      <p style="font-size:.75rem;color:var(--muted);margin-bottom:3px">Current path:</p>
+      <div id="path-display"></div>
+    </div>
+
+    <!-- Early-exit checks -->
+    <div class="card" style="padding:10px 12px">
+      <h2 style="margin-bottom:6px">Early-exit checks</h2>
+      <div class="ec-row">
+        <div id="ec-odd">⬜ Path length parity</div>
+        <div id="ec-start">⬜ grid[0][0] ≠ ')'</div>
+        <div id="ec-end">⬜ grid[m-1][n-1] ≠ '('</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recursion Tree panel -->
+  <div class="card" id="tree-panel" style="display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+      <h2>Recursion Tree</h2>
+      <div class="legend">
+        <div class="leg-item"><div class="leg-dot" style="background:#312e81;border:1px solid var(--accent)"></div>Active</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#14532d;border:1px solid var(--open)"></div>True</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#7f1d1d;border:1px solid var(--close)"></div>False/Pruned</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#1a2e28;border:1px solid #10b981"></div>Memo</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#1c2e4a;border:1px solid #3b82f6"></div>Pending</div>
+      </div>
+    </div>
+    <p style="font-size:.73rem;color:var(--muted)">
+      Each node = <code style="color:var(--accent2)">explore(r, c, bal)</code>. Left child = move <b>↓ Down</b>, right child = move <b>→ Right</b>.
+    </p>
+    <div id="tree-scroll">
+      <svg id="tree-svg" width="600" height="300">
+        <text x="50%" y="50%" text-anchor="middle" fill="#64748b" font-size="13">
+          Tree grows here when simulation starts
+        </text>
+      </svg>
+    </div>
+
+    <!-- Algo reference -->
+    <div class="card" style="padding:10px 12px">
+      <h2 style="margin-bottom:5px">Algorithm sketch</h2>
+      <pre style="font-size:.68rem;line-height:1.75;color:#94a3b8;white-space:pre-wrap">explore(r, c, balance):
+  <span style="color:#f87171">if OOB → false</span>
+  balance += '(' ? +1 : -1
+  <span style="color:#fb923c">if bal &lt; 0 or ≥ maxLen → prune → false</span>
+  <span style="color:#fbbf24">if destination: return bal == 0</span>
+  <span style="color:#5eead4">if memo[r][c][bal] ≠ 0 → return cached</span>
+  result = explore(r+1,c,bal) <b style="color:#94a3b8">↓</b>
+        OR explore(r,c+1,bal) <b style="color:#94a3b8">→</b>
+  memo[r][c][bal] = result
+  return result</pre>
+    </div>
+  </div>
+
+</div><!-- .main-row -->
+
+<!-- ── BOTTOM ROW: Call Stack | Memo Table ────────────────────────────── -->
+<div class="bottom-row">
+
+  <!-- Call stack -->
+  <div class="card">
+    <h2>Recursion Call Stack <span style="color:var(--muted);font-weight:400">(top = current frame)</span></h2>
+    <div id="call-stack">
+      <div class="stack-frame" style="color:var(--muted);font-size:.73rem">Stack empty — start simulation</div>
+    </div>
+  </div>
+
+  <!-- Memo table -->
+  <div class="card">
+    <h2>Memo Table <span style="color:var(--muted);font-weight:400">[r, c, bal] → result</span></h2>
+    <div id="memo-grid">
+      <div class="memo-entry" style="color:var(--muted);font-size:.73rem;grid-column:span 2">No entries yet</div>
+    </div>
+  </div>
+
+</div><!-- .bottom-row -->
+
+</div><!-- .page -->
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   PRESETS
+═══════════════════════════════════════════════════════════════════════ */
+const PRESETS = [
+  [["(","(","("],[")",")","("],["(","(",")" ]],       // 0 valid
+  [["(",")",")"],["(","(","("],[")",")",")" ]],       // 1 invalid
+  [["(","(","(","("],[")",")",")",")"]],              // 2 tricky 2×4
+  [["(","(","(","("],["(",")",")","("],["(","(",")","("],[")",")",")",")"]],  // 3 4×4
+  [["("]]                                             // 4 odd
+];
+
+let grid = [];
+let simSteps = [];
+let stepIdx  = 0;
+let timer    = null;
+let running  = false;
+
+// Tree data built once per grid load
+// treeNodes[id] = { id, label, r, c, bal, parentId, childEdge('down'|'right'), status, x, y }
+let treeNodes = {};
+let treeNodeOrder = [];  // insertion order
+
+window.onload = () => {
+  document.getElementById('speed-slider').addEventListener('input', function(){
+    document.getElementById('speed-label').textContent = this.value+'×';
+  });
+  loadPreset(0);
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   GRID LOAD
+═══════════════════════════════════════════════════════════════════════ */
+function loadPreset(i) {
+  grid = PRESETS[i].map(r=>[...r]);
+  resetSim(); renderGrid(); renderEarlyChecks();
+}
+function loadCustomGrid() {
+  try {
+    const raw = document.getElementById('custom-grid-input').value.trim();
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)||!Array.isArray(parsed[0])) throw new Error('bad shape');
+    grid = parsed.map(r=>r.map(c=>(c==='('||c===')')?c:'('));
+    resetSim(); renderGrid(); renderEarlyChecks();
+  } catch(e) { alert('Invalid JSON.\nExample: [["(","(",")"],[")","(",")"],[")","(",")"]]\n'+e.message); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   GRID RENDER
+═══════════════════════════════════════════════════════════════════════ */
+function renderGrid() {
+  const m=grid.length, n=grid[0].length;
+  const tbl=document.getElementById('grid-table');
+  tbl.innerHTML='';
+  for (let r=0;r<m;r++) {
+    const tr=document.createElement('tr');
+    for (let c=0;c<n;c++) {
+      const td=document.createElement('td'); td.id=`cell-${r}-${c}`;
+      const sym=grid[r][c];
+      td.innerHTML=`<span class="cell-sym ${sym==='('?'cell-open':'cell-close'}">${sym}</span>`
+        +`<span class="cell-rc">${r},${c}</span>`
+        +`<span class="cell-memo" id="cmemo-${r}-${c}"></span>`;
+      if(r===0&&c===0) td.classList.add('state-start');
+      if(r===m-1&&c===n-1) td.classList.add('state-end');
+      tr.appendChild(td);
+    }
+    tbl.appendChild(tr);
+  }
+  requestAnimationFrame(sizeSvg);
+}
+function sizeSvg() {
+  const tbl=document.getElementById('grid-table');
+  const svg=document.getElementById('arrow-svg');
+  const rect=tbl.getBoundingClientRect();
+  svg.setAttribute('width',rect.width); svg.setAttribute('height',rect.height);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   EARLY CHECKS
+═══════════════════════════════════════════════════════════════════════ */
+function renderEarlyChecks() {
+  const m=grid.length, n=grid[0].length;
+  const pl=m+n-1;
+  const oddOk=pl%2===0, startOk=grid[0][0]!==')', endOk=grid[m-1][n-1]!=='(';
+  const mk=(id,ok,label)=>{
+    const el=document.getElementById(id);
+    el.textContent=(ok?'✅':'❌')+' '+label;
+    el.style.color=ok?'var(--open)':'var(--close)';
+  };
+  mk('ec-odd',  oddOk,  `Path length ${pl} is ${oddOk?'even — can balance':'odd — impossible'}`);
+  mk('ec-start',startOk,`grid[0][0]="${grid[0][0]}" ${startOk?'(valid start)':'→ starts with ) false'}`);
+  mk('ec-end',  endOk,  `grid[m-1][n-1]="${grid[m-1][n-1]}" ${endOk?'(valid end)':'→ ends with ( false'}`);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BUILD ALL STEPS (+ tree skeleton)
+═══════════════════════════════════════════════════════════════════════ */
+function buildSteps() {
+  const m=grid.length, n=grid[0].length;
+  const steps=[];
+  const memo={};
+
+  const pl=m+n-1;
+  if (pl%2!==0) {
+    steps.push({type:'early-exit',result:false,
+      log:`<span class="hl-warn">Early exit:</span> path length <span class="highlight">${pl}</span> is odd — cannot balance. Return <span class="hl-close">false</span>.`});
+    return steps;
+  }
+  if (grid[0][0]===')') {
+    steps.push({type:'early-exit',result:false,
+      log:`<span class="hl-warn">Early exit:</span> grid[0][0] = <span class="hl-close">')'</span> — impossible start. Return <span class="hl-close">false</span>.`});
+    return steps;
+  }
+  if (grid[m-1][n-1]==='(') {
+    steps.push({type:'early-exit',result:false,
+      log:`<span class="hl-warn">Early exit:</span> grid[m-1][n-1] = <span class="hl-open">'('</span> — balance never 0 at end. Return <span class="hl-close">false</span>.`});
+    return steps;
+  }
+
+  steps.push({type:'start',path:[],callStack:[],treeNodes:{},activeNodeId:null,
+    log:`Early-exit checks pass. Starting DFS from <span class="highlight">(0,0)</span> with balance=<span class="highlight">0</span>.`});
+
+  const maxBal=m+n;
+  const callStack=[];
+  let nodeCounter=0;
+  const tNodes={};  // snapshot per step
+
+  function makeNodeId(r,c,bal){ return `n${nodeCounter++}`; }
+
+  function dfs(r,c,bal,path,parentId,childEdge) {
+    // OOB
+    if (r===m||c===n) {
+      const id=makeNodeId(r,c,bal);
+      tNodes[id]={id,r,c,bal,label:`OOB\n(${r},${c})`,parentId,childEdge,status:'pruned'};
+      steps.push({type:'oob',r,c,bal,path:[...path],callStack:[...callStack],
+        treeSnapshot:cloneTree(tNodes),activeNodeId:id,
+        log:`<span class="hl-warn">OOB</span> at (${r},${c}). Backtrack → <span class="hl-close">false</span>.`});
+      return {val:false,nodeId:id};
+    }
+
+    const newBal=bal+(grid[r][c]==='('?1:-1);
+    const id=makeNodeId(r,c,newBal);
+    tNodes[id]={id,r,c,bal:newBal,sym:grid[r][c],label:`(${r},${c})\n${grid[r][c]} b=${newBal}`,
+      parentId,childEdge,status:'active'};
+    callStack.push({r,c,bal:newBal,status:'active',nodeId:id});
+    path.push([r,c]);
+
+    steps.push({type:'enter',r,c,prevBal:bal,bal:newBal,path:[...path],callStack:[...callStack],
+      treeSnapshot:cloneTree(tNodes),activeNodeId:id,
+      log:`Enter <span class="highlight">(${r},${c})</span> = <span class="${grid[r][c]==='('?'hl-open':'hl-close'}">'${grid[r][c]}'</span>. Balance: ${bal}→<span class="highlight">${newBal}</span>.`});
+
+    if (newBal<0) {
+      tNodes[id].status='pruned'; callStack[callStack.length-1].status='pruned';
+      steps.push({type:'prune',r,c,bal:newBal,path:[...path],callStack:[...callStack],
+        treeSnapshot:cloneTree(tNodes),activeNodeId:id,
+        log:`<span class="hl-warn">Prune:</span> balance <span class="hl-close">${newBal}&lt;0</span> — too many ')'. Return <span class="hl-close">false</span>.`});
+      path.pop(); callStack.pop();
+      return {val:false,nodeId:id};
+    }
+    if (newBal>=maxBal) {
+      tNodes[id].status='pruned'; callStack[callStack.length-1].status='pruned';
+      steps.push({type:'prune',r,c,bal:newBal,path:[...path],callStack:[...callStack],
+        treeSnapshot:cloneTree(tNodes),activeNodeId:id,
+        log:`<span class="hl-warn">Prune:</span> balance <span class="hl-close">${newBal}≥${maxBal}</span> overflow. Return <span class="hl-close">false</span>.`});
+      path.pop(); callStack.pop();
+      return {val:false,nodeId:id};
+    }
+
+    if (r===m-1&&c===n-1) {
+      const ok=newBal===0;
+      tNodes[id].status=ok?'true':'false'; callStack[callStack.length-1].status=ok?'hit':'pruned';
+      steps.push({type:'destination',r,c,bal:newBal,result:ok,path:[...path],callStack:[...callStack],
+        treeSnapshot:cloneTree(tNodes),activeNodeId:id,
+        log:`Reached <span class="highlight">(${r},${c})</span>. Balance=<span class="highlight">${newBal}</span>. ${ok
+          ?'0 → <span class="hl-open">Valid path! Return true.</span>'
+          :'≠0 → <span class="hl-close">Not balanced. Return false.</span>'}`});
+      path.pop(); callStack.pop();
+      return {val:ok,nodeId:id};
+    }
+
+    const mkey=`${r},${c},${newBal}`;
+    if (memo[mkey]!==undefined) {
+      tNodes[id].status='memo';
+      tNodes[id].memoVal=memo[mkey];   // ← cache hit value shown on node line 3
+      callStack[callStack.length-1].status='memo';
+      steps.push({type:'memo-hit',r,c,bal:newBal,memoVal:memo[mkey],path:[...path],
+        callStack:[...callStack],memoMap:{...memo},
+        treeSnapshot:cloneTree(tNodes),activeNodeId:id,
+        log:`<span class="hl-acc">Memo hit</span> state (${r},${c},bal=${newBal}). Cached=<span class="${memo[mkey]?'hl-open':'hl-close'}">${memo[mkey]}</span>. Skip subtree.`});
+      path.pop(); callStack.pop();
+      return {val:memo[mkey],nodeId:id};
+    }
+
+    // recurse down then right
+    const dRes=dfs(r+1,c,newBal,path,id,'down');
+    const rRes=dfs(r,c+1,newBal,path,id,'right');
+    const res=dRes.val||rRes.val;
+    memo[mkey]=res;
+    tNodes[id].status=res?'true':'false';
+    tNodes[id].memoResult=res;   // ← store result so tree node can show memo badge
+
+    steps.push({type:'memoize',r,c,bal:newBal,result:res,path:[...path],
+      callStack:[...callStack],memoMap:{...memo},
+      treeSnapshot:cloneTree(tNodes),activeNodeId:id,
+      log:`Memoize (${r},${c},bal=${newBal})=<span class="${res?'hl-open':'hl-close'}">${res}</span>. (↓=${dRes.val}, →=${rRes.val})`});
+
+    path.pop(); callStack.pop();
+    return {val:res,nodeId:id};
+  }
+
+  const finalRes=dfs(0,0,0,[],null,null);
+
+  steps.push({type:'done',result:finalRes.val,path:[],callStack:[],
+    treeSnapshot:cloneTree(tNodes),activeNodeId:null,
+    log:`<b>Done.</b> <span class="${finalRes.val?'hl-open':'hl-close'}">${finalRes.val?'✅ Valid path exists!':'❌ No valid path found.'}</span>`});
+
+  return steps;
+}
+
+function cloneTree(t){ return JSON.parse(JSON.stringify(t)); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CONTROLS
+═══════════════════════════════════════════════════════════════════════ */
+function resetSim() {
+  clearInterval(timer); running=false; stepIdx=0; simSteps=[]; timer=null;
+  document.getElementById('btn-start').disabled=false;
+  document.getElementById('btn-pause').disabled=true;
+  document.getElementById('btn-step').disabled=false;   // Step always enabled
+  document.getElementById('step-log').innerHTML='Click <b>Step →</b> to go one step at a time, or <b>▶ Auto-play</b> to run automatically.';
+  document.getElementById('result-banner').style.display='none';
+  document.getElementById('call-stack').innerHTML='<div class="stack-frame" style="color:var(--muted);font-size:.73rem">Stack empty — start simulation</div>';
+  document.getElementById('memo-grid').innerHTML='<div class="memo-entry" style="color:var(--muted);font-size:.73rem;grid-column:span 2">No entries yet</div>';
+  document.getElementById('progress-bar').style.width='0%';
+  document.getElementById('balance-bar-wrap').innerHTML='';
+  document.getElementById('balance-num').innerHTML='Balance: <span>0</span>';
+  document.getElementById('path-display').innerHTML='';
+  document.getElementById('arrow-svg').innerHTML='';
+  clearTreeSvg();
+  if(grid.length) {
+    for(let r=0;r<grid.length;r++) for(let c=0;c<grid[0].length;c++) {
+      const td=document.getElementById(`cell-${r}-${c}`);
+      if(!td) continue;
+      td.className='';
+      if(r===0&&c===0) td.classList.add('state-start');
+      if(r===grid.length-1&&c===grid[0].length-1) td.classList.add('state-end');
+      const cm=document.getElementById(`cmemo-${r}-${c}`);
+      if(cm) cm.textContent='';
+    }
+  }
+}
+
+function startSim() {
+  if(!grid.length) return;
+  if(simSteps.length===0) simSteps=buildSteps();
+  document.getElementById('btn-start').disabled=true;
+  document.getElementById('btn-pause').disabled=false;
+  document.getElementById('btn-step').disabled=false;
+  running=true; scheduleTick();
+}
+function pauseSim() {
+  clearInterval(timer); timer=null; running=false;
+  document.getElementById('btn-pause').textContent='▶ Resume';
+  document.getElementById('btn-pause').onclick=resumeSim;
+}
+function resumeSim() {
+  running=true;
+  document.getElementById('btn-pause').textContent='⏸ Pause';
+  document.getElementById('btn-pause').onclick=pauseSim;
+  scheduleTick();
+}
+function scheduleTick() {
+  if(timer) clearInterval(timer);
+  const speed=parseInt(document.getElementById('speed-slider').value,10);
+  const delay=Math.round(1100/speed);
+  timer=setInterval(()=>{
+    if(!running){clearInterval(timer);return}
+    if(stepIdx>=simSteps.length){clearInterval(timer);return}
+    applyStep(simSteps[stepIdx++]);
+    if(stepIdx>=simSteps.length) clearInterval(timer);
+  },delay);
+}
+function stepOnce() {
+  // Build steps lazily — no need to click Start first
+  if(simSteps.length===0) simSteps=buildSteps();
+  // Stop any running auto-play
+  if(running){ clearInterval(timer); timer=null; running=false; }
+  document.getElementById('btn-start').disabled = (stepIdx >= simSteps.length);
+  document.getElementById('btn-pause').textContent='▶ Resume';
+  document.getElementById('btn-pause').onclick=resumeSim;
+  document.getElementById('btn-pause').disabled=false;
+  if(stepIdx<simSteps.length) applyStep(simSteps[stepIdx++]);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   APPLY STEP
+═══════════════════════════════════════════════════════════════════════ */
+let lastActiveCell=null;
+
+function applyStep(step) {
+  const m=grid.length, n=grid[0].length;
+
+  document.getElementById('progress-bar').style.width=
+    Math.round((stepIdx/simSteps.length)*100)+'%';
+
+  if(step.log) document.getElementById('step-log').innerHTML=step.log;
+
+  // ── Grid coloring ──
+  if(lastActiveCell){
+    const [pr,pc]=lastActiveCell;
+    const ptd=document.getElementById(`cell-${pr}-${pc}`);
+    if(ptd) ptd.classList.remove('state-current');
+    lastActiveCell=null;
+  }
+  if(['enter','prune','destination','memo-hit'].includes(step.type)) {
+    const {r,c}=step;
+    // reset all non-permanent
+    for(let rr=0;rr<m;rr++) for(let cc=0;cc<n;cc++) {
+      const td=document.getElementById(`cell-${rr}-${cc}`);
+      if(td) td.classList.remove('state-current','state-onpath','state-hit','state-pruned','state-memoused');
+    }
+    if(step.path) step.path.forEach(([pr,pc])=>{
+      const td=document.getElementById(`cell-${pr}-${pc}`);
+      if(td) td.classList.add('state-onpath');
+    });
+    const td=document.getElementById(`cell-${r}-${c}`);
+    if(td){
+      if(step.type==='prune'){td.classList.remove('state-onpath');td.classList.add('state-pruned')}
+      else if(step.type==='destination'&&step.result) td.classList.add('state-hit');
+      else if(step.type==='memo-hit') td.classList.add('state-memoused');
+      else{td.classList.add('state-current');lastActiveCell=[r,c];}
+    }
+  }
+
+  if(step.type==='memoize'){
+    const el=document.getElementById(`cmemo-${step.r}-${step.c}`);
+    if(el){el.textContent=step.result?'T':'F';el.style.color=step.result?'var(--open)':'var(--close)';}
+  }
+
+  // ── Arrows ──
+  if(step.path&&step.path.length>1) drawArrows(step.path);
+  else document.getElementById('arrow-svg').innerHTML='';
+
+  // ── Balance ──
+  if(step.bal!==undefined) updateBalanceBar(step.bal);
+
+  // ── Path display ──
+  if(step.path) updatePathDisplay(step.path);
+
+  // ── Call stack ──
+  if(step.callStack!==undefined) updateCallStack(step.callStack);
+
+  // ── Memo table ──
+  if(step.memoMap) updateMemoTable(step.memoMap);
+
+  // ── Recursion Tree ──
+  if(step.treeSnapshot) renderTree(step.treeSnapshot, step.activeNodeId);
+
+  // ── Done ──
+  if(step.type==='done'||step.type==='early-exit'){
+    showResult(step.result);
+    document.getElementById('btn-pause').disabled=true;
+    document.getElementById('btn-step').disabled=true;   // nothing left to step
+    document.getElementById('btn-start').disabled=true;
+    running=false; clearInterval(timer);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   UI HELPERS
+═══════════════════════════════════════════════════════════════════════ */
+function updateBalanceBar(bal) {
+  const wrap=document.getElementById('balance-bar-wrap');
+  wrap.innerHTML='';
+  for(let i=0;i<bal;i++){
+    const t=document.createElement('div'); t.className='bt bt-open'; t.textContent='(';
+    wrap.appendChild(t);
+  }
+  document.getElementById('balance-num').innerHTML=
+    `Balance: <span style="color:${bal===0?'var(--accent2)':bal>0?'var(--open)':'var(--close)'}">${bal}</span>`;
+}
+
+function updatePathDisplay(path) {
+  const wrap=document.getElementById('path-display');
+  wrap.innerHTML='';
+  path.forEach(([r,c])=>{
+    const d=document.createElement('div');
+    const sym=grid[r][c];
+    d.className='path-sym '+(sym==='('?'ps-open':'ps-close');
+    d.textContent=sym; d.title=`(${r},${c})`;
+    wrap.appendChild(d);
+  });
+}
+
+function updateCallStack(stack) {
+  const el=document.getElementById('call-stack');
+  if(!stack.length){
+    el.innerHTML='<div class="stack-frame" style="color:var(--muted);font-size:.73rem">Stack empty</div>';
+    return;
+  }
+  el.innerHTML='';
+  [...stack].reverse().forEach((f,i)=>{
+    const div=document.createElement('div');
+    div.className='stack-frame'+(i===0?' sf-active':'');
+    let badge='';
+    if(f.status==='pruned') badge='<span class="frame-badge badge-pruned">pruned</span>';
+    else if(f.status==='hit')  badge='<span class="frame-badge badge-hit">✓ hit</span>';
+    else if(f.status==='memo') badge='<span class="frame-badge badge-memo">memo↩</span>';
+    div.innerHTML=`explore(${f.r}, ${f.c}, bal=${f.bal})${badge}`;
+    el.appendChild(div);
+  });
+}
+
+function updateMemoTable(memoMap) {
+  const keys=Object.keys(memoMap);
+  if(!keys.length) return;
+  const el=document.getElementById('memo-grid');
+  el.innerHTML='';
+  keys.sort((a,b)=>{
+    const [ar,ac,ab]=a.split(',').map(Number);
+    const [br,bc,bb]=b.split(',').map(Number);
+    return ar!==br?ar-br:ac!==bc?ac-bc:ab-bb;
+  }).forEach(k=>{
+    const v=memoMap[k];
+    const div=document.createElement('div');
+    div.className='memo-entry '+(v?'memo-true':'memo-false');
+    div.innerHTML=`<span>[${k}]</span><span style="font-weight:700;color:${v?'var(--open)':'var(--close)'}">${v}</span>`;
+    el.appendChild(div);
+  });
+}
+
+function showResult(result) {
+  const b=document.getElementById('result-banner');
+  b.style.display='block';
+  b.className='result-'+(result?'true':'false');
+  b.textContent=result
+    ?'✅ Valid path exists — balanced parentheses reachable!'
+    :'❌ No valid path — no balanced string from start to end.';
+}
+
+function drawArrows(path) {
+  const svg=document.getElementById('arrow-svg');
+  const tbl=document.getElementById('grid-table');
+  const tblRect=tbl.getBoundingClientRect();
+  svg.innerHTML='';
+  const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+  defs.innerHTML=`<marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+    <path d="M0,0 L0,6 L8,3 z" fill="#3b82f6" opacity=".8"/></marker>`;
+  svg.appendChild(defs);
+  for(let i=1;i<path.length;i++){
+    const [r1,c1]=path[i-1],[r2,c2]=path[i];
+    const t1=document.getElementById(`cell-${r1}-${c1}`);
+    const t2=document.getElementById(`cell-${r2}-${c2}`);
+    if(!t1||!t2) continue;
+    const b1=t1.getBoundingClientRect(), b2=t2.getBoundingClientRect();
+    const x1=b1.left-tblRect.left+b1.width/2, y1=b1.top-tblRect.top+b1.height/2;
+    const x2=b2.left-tblRect.left+b2.width/2, y2=b2.top-tblRect.top+b2.height/2;
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',x1);line.setAttribute('y1',y1);
+    line.setAttribute('x2',x2);line.setAttribute('y2',y2);
+    line.setAttribute('stroke','#3b82f6');line.setAttribute('stroke-width','2.5');
+    line.setAttribute('stroke-opacity','0.7');line.setAttribute('marker-end','url(#ah)');
+    svg.appendChild(line);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   RECURSION TREE RENDERER
+   Layout: Reingold-Tilford inspired left-to-right x assignment.
+   Nodes are 3-line: (r,c) sym | bal=N | memo result (if set)
+═══════════════════════════════════════════════════════════════════════ */
+const NODE_W  = 88;   // node box width
+const NODE_H  = 52;   // node box height — 3 lines
+const LEVEL_H = 88;   // vertical gap between level tops
+const NODE_PAD= 12;   // horizontal padding between nodes
+
+function clearTreeSvg() {
+  const svg=document.getElementById('tree-svg');
+  svg.innerHTML='<text x="50%" y="50%" text-anchor="middle" fill="#64748b" font-size="13">Tree grows here — click Step → or ▶ Auto-play</text>';
+  svg.setAttribute('width','600');
+  svg.setAttribute('height','300');
+}
+
+function renderTree(tSnapshot, activeId) {
+  if(!tSnapshot||Object.keys(tSnapshot).length===0){clearTreeSvg();return;}
+
+  // ── Build child map ──
+  const children = {};
+  let rootId = null;
+  Object.values(tSnapshot).forEach(node => {
+    if(node.parentId===null||node.parentId===undefined) { rootId=node.id; return; }
+    if(!children[node.parentId]) children[node.parentId]=[];
+    if(node.childEdge==='down') children[node.parentId].unshift(node.id);
+    else children[node.parentId].push(node.id);
+  });
+  if(!rootId){clearTreeSvg();return;}
+
+  // ── Assign x/y positions (leaf-counter approach) ──
+  let xCounter=0;
+  const pos={};
+  function assignPos(id, depth) {
+    const kids=children[id]||[];
+    if(kids.length===0){
+      pos[id]={x:xCounter*(NODE_W+NODE_PAD), y:depth*LEVEL_H};
+      xCounter++;
+      return;
+    }
+    kids.forEach(kid=>assignPos(kid,depth+1));
+    const kidXs=kids.map(k=>pos[k].x);
+    pos[id]={x:(Math.min(...kidXs)+Math.max(...kidXs))/2, y:depth*LEVEL_H};
+  }
+  assignPos(rootId,0);
+
+  // ── SVG dimensions ──
+  const xs=Object.values(pos).map(p=>p.x);
+  const ys=Object.values(pos).map(p=>p.y);
+  const minX=Math.min(...xs)-10, maxX=Math.max(...xs)+NODE_W+10;
+  const minY=Math.min(...ys)-10, maxY=Math.max(...ys)+NODE_H+24;
+  const svgW=Math.max(maxX-minX, 580);
+  const svgH=Math.max(maxY-minY, 200);
+  const offsetX=-minX+10, offsetY=-minY+20;
+
+  const svg=document.getElementById('tree-svg');
+  svg.setAttribute('width',svgW);
+  svg.setAttribute('height',svgH);
+  svg.innerHTML='';
+
+  // ── Arrowhead marker ──
+  const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+  defs.innerHTML=`
+    <marker id="edgearrow" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L7,3 z" fill="#4b5563" opacity=".8"/>
+    </marker>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>`;
+  svg.appendChild(defs);
+
+  // ── Draw edges ──
+  Object.values(tSnapshot).forEach(node=>{
+    if(!node.parentId) return;
+    const pp=pos[node.parentId], cp=pos[node.id];
+    if(!pp||!cp) return;
+    const x1=pp.x+offsetX+NODE_W/2, y1=pp.y+offsetY+NODE_H;
+    const x2=cp.x+offsetX+NODE_W/2, y2=cp.y+offsetY;
+    const isDown=node.childEdge==='down';
+    const edgeColor=isDown?'#6366f1':'#06b6d4';
+
+    // curved path
+    const midY=(y1+y2)/2;
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',`M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`);
+    path.setAttribute('stroke',edgeColor);
+    path.setAttribute('stroke-width','1.8');
+    path.setAttribute('stroke-opacity','0.55');
+    path.setAttribute('fill','none');
+    path.setAttribute('marker-end','url(#edgearrow)');
+    svg.appendChild(path);
+
+    // edge label
+    const mx=(x1+x2)/2+4, my=(y1+y2)/2;
+    const et=document.createElementNS('http://www.w3.org/2000/svg','text');
+    et.setAttribute('x',mx); et.setAttribute('y',my);
+    et.setAttribute('font-size','10'); et.setAttribute('fill',edgeColor);
+    et.setAttribute('font-weight','bold'); et.setAttribute('font-family','Courier New,monospace');
+    et.textContent=isDown?'↓ down':'→ right';
+    svg.appendChild(et);
+  });
+
+  // ── Draw nodes ──
+  Object.values(tSnapshot).forEach(node=>{
+    const p=pos[node.id];
+    if(!p) return;
+    const nx=p.x+offsetX, ny=p.y+offsetY;
+    const isActive=node.id===activeId;
+
+    // color scheme by status
+    let fill='#1c2e4a', stroke='#3b82f6', textCol='#94a3b8';
+    if(node.status==='active')               {fill='#312e81';stroke='#7c6af7';textCol='#c4b5fd';}
+    if(node.status==='true')                 {fill='#14532d';stroke='#4ade80';textCol='#86efac';}
+    if(node.status==='false'||
+       node.status==='pruned')               {fill='#7f1d1d';stroke='#f87171';textCol='#fca5a5';}
+    if(node.status==='memo')                 {fill='#1a2e28';stroke='#10b981';textCol='#6ee7b7';}
+    if(isActive)                             {stroke='#fbbf24';}
+
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+
+    // active glow
+    if(isActive){
+      const glow=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      glow.setAttribute('x',nx-4);glow.setAttribute('y',ny-4);
+      glow.setAttribute('width',NODE_W+8);glow.setAttribute('height',NODE_H+8);
+      glow.setAttribute('rx','10');glow.setAttribute('fill','#fbbf2422');
+      glow.setAttribute('filter','url(#glow)');
+      g.appendChild(glow);
+    }
+
+    // main rect
+    const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x',nx);rect.setAttribute('y',ny);
+    rect.setAttribute('width',NODE_W);rect.setAttribute('height',NODE_H);
+    rect.setAttribute('rx','8');rect.setAttribute('fill',fill);
+    rect.setAttribute('stroke',stroke);rect.setAttribute('stroke-width',isActive?'2.2':'1.5');
+    g.appendChild(rect);
+
+    // ── Line 1: (r,c) + symbol ──
+    const symColor = node.sym==='('?'#4ade80': node.sym===')'?'#f87171':'#94a3b8';
+    const t1=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t1.setAttribute('x',nx+NODE_W/2); t1.setAttribute('y',ny+14);
+    t1.setAttribute('text-anchor','middle'); t1.setAttribute('font-size','10');
+    t1.setAttribute('font-family','Courier New,monospace');
+    t1.setAttribute('fill',symColor); t1.setAttribute('font-weight','700');
+    t1.textContent = node.r!==undefined ? `(${node.r},${node.c}) ${node.sym||'OOB'}` : 'OOB';
+    g.appendChild(t1);
+
+    // ── Line 2: balance ──
+    const t2=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t2.setAttribute('x',nx+NODE_W/2); t2.setAttribute('y',ny+27);
+    t2.setAttribute('text-anchor','middle'); t2.setAttribute('font-size','9.5');
+    t2.setAttribute('font-family','Courier New,monospace');
+    t2.setAttribute('fill',textCol);
+    t2.textContent=`bal = ${node.bal}`;
+    g.appendChild(t2);
+
+    // ── Line 3: status / memo result ──
+    const t3=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t3.setAttribute('x',nx+NODE_W/2); t3.setAttribute('y',ny+41);
+    t3.setAttribute('text-anchor','middle'); t3.setAttribute('font-size','9');
+    t3.setAttribute('font-family','Courier New,monospace');
+    t3.setAttribute('font-weight','700');
+
+    let line3='', line3Color=textCol;
+    if(node.status==='active')  { line3='exploring…'; line3Color='#a5b4fc'; }
+    else if(node.status==='true')  {
+      line3 = node.memoResult!==undefined ? '📝 memo = true' : '✓ true';
+      line3Color='#4ade80';
+    }
+    else if(node.status==='false') {
+      line3 = node.memoResult!==undefined ? '📝 memo = false' : '✗ false';
+      line3Color='#f87171';
+    }
+    else if(node.status==='pruned') { line3='✗ pruned'; line3Color='#fb923c'; }
+    else if(node.status==='memo')   {
+      // memo HIT — show the cached value retrieved
+      line3=`📋 cached = ${node.memoVal!==undefined ? node.memoVal : '?'}`;
+      line3Color='#6ee7b7';
+    }
+    else { line3='…pending'; line3Color='#64748b'; }
+
+    t3.setAttribute('fill',line3Color);
+    t3.textContent=line3;
+    g.appendChild(t3);
+
+    svg.appendChild(g);
+  });
+
+  // ── Auto-scroll to keep active node visible ──
+  if(activeId && pos[activeId]){
+    const p=pos[activeId];
+    const scroll=document.getElementById('tree-scroll');
+    // center horizontally on active node
+    scroll.scrollLeft=Math.max(0, p.x+offsetX+NODE_W/2 - scroll.clientWidth/2);
+    // scroll down to active node if it's below viewport
+    const nodeBottom=p.y+offsetY+NODE_H;
+    if(nodeBottom > scroll.scrollTop+scroll.clientHeight-20){
+      scroll.scrollTop=Math.max(0, nodeBottom - scroll.clientHeight + 40);
+    }
+  }
+}
+
+</script>
+</body>
+</html>
